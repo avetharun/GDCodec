@@ -3,47 +3,65 @@ class_name Codec
 extends Object
 var encoder : Encoder
 var decoder : Decoder
+var wire_encoder : Encoder
 var is_record:bool = false
 const VERSION : int = 0000_1000_0000
 static var ENUM : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u64(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64())
+)
 static var LONG : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u64(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64())
+)
 static var INT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u32(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u32()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u32())
+)
 static var SHORT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u16(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u16()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u16())
+)
 static var BYTE : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u8(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u8()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u8())
+)
 static var SIGNED_LONG : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_64(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_64()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_64())
+)
 static var SIGNED_INT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_32(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_32()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_32())
+)
 static var SIGNED_SHORT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_16(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_16()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_16())
+)
 static var SIGNED_BYTE : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_8(v as int)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_8()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_8())
+)
 static var DOUBLE : Codec = Codec.new(
 		Encoder.new(func(v:float, buf:StreamPeerBuffer): buf.put_double(v)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_double()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_double())
+)
 static var FLOAT : Codec = Codec.new(
 		Encoder.new(func(v:float, buf:StreamPeerBuffer): buf.put_float(v)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_float()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_float())
+)
 static var BOOL : Codec = Codec.new(
 		Encoder.new(func(v:bool, buf:StreamPeerBuffer): buf.put_u8(1 if v else 0)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return true if buf.get_u8() == 1 else false))
+		Decoder.new(func(buf:StreamPeerBuffer): return true if buf.get_u8() == 1 else false)
+)
 static var STRING : Codec = Codec.new(
 		Encoder.new(func(v:String, buf:StreamPeerBuffer): buf.put_utf8_string(v)), 
-		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_utf8_string()))
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_utf8_string())
+)
+static var STRING_NAME: Codec = STRING.xmap(
+		func(source: String) -> StringName: return StringName(source),
+		func(destination: StringName) -> String: return String(destination)
+)
 static var LONG_ARRAY : Codec = arrayof(LONG)
 static var INT_ARRAY : Codec = arrayof(INT)
 static var SHORT_ARRAY : Codec = arrayof(SHORT)
@@ -174,7 +192,7 @@ static var BYTE_ARRAY : Codec = Codec.new(
 
 
 static func arrayof(codec:Codec) -> Codec:
-	return Codec.new(
+	var array_codec := Codec.new(
 		Encoder.new(func(v:Array[Variant], buf:StreamPeerBuffer):
 				var len : int = v.size()
 				buf.put_u32(len)
@@ -190,6 +208,12 @@ static func arrayof(codec:Codec) -> Codec:
 				return values
 				)
 	)
+	array_codec.wire_encoder = Encoder.new(func(v:Array[Variant], buf:StreamPeerBuffer):
+			buf.put_u32(v.size())
+			for value in v:
+				codec.encode_wire(value, buf)
+			)
+	return array_codec
 
 
 ## Creates an array codec that rejects more than max_length elements during encoding or decoding
@@ -251,16 +275,26 @@ static func record(fields:Dictionary) -> Codec:
 				)
 	)
 	codec.is_record = true
+	codec.wire_encoder = Encoder.new(func(v:Dictionary, buf:StreamPeerBuffer):
+			for field_name in field_names:
+				var field_codec:Codec = fields[field_name]
+				field_codec.encode_wire(v.get(field_name), buf)
+			)
 	return codec
 
 
 func _init(c_encoder:Encoder, c_decoder:Decoder) -> void:
 	self.encoder = c_encoder
 	self.decoder = c_decoder
+	self.wire_encoder = c_encoder
 
 
 func encode(v:Variant, buf:StreamPeerBuffer):
 	encoder.encode(v, buf)
+
+
+func encode_wire(v:Variant, buf:StreamPeerBuffer):
+	wire_encoder.encode(v, buf)
 
 
 func decode(buf:StreamPeerBuffer)->Variant:
@@ -288,7 +322,7 @@ func smap(mapper:Callable) -> Codec:
 ## Converts the result(Decoded) into another type and converts it back before encoding[br]eg: [code]Codec.INT.xmap(func(result): return str(result), func(value): return int(value))[/code][br]would result in a string represented by an uint32
 func xmap(to:Callable, from:Callable) -> Codec:
 	var source:Codec = self
-	return Codec.new(
+	var codec := Codec.new(
 		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
 				source.encode(from.call(v), buf)
 				),
@@ -296,6 +330,9 @@ func xmap(to:Callable, from:Callable) -> Codec:
 				return to.call(source.decode(buf))
 				)
 	)
+	codec.is_record = source.is_record
+	codec.wire_encoder = source.wire_encoder
+	return codec
 
 
 class Encoder:

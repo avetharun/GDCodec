@@ -15,7 +15,7 @@ func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	var error : Error = parser.parse(buf.data_array.get_string_from_utf8())
 	assert(error == OK)
 	var binary : StreamPeerBuffer = StreamPeerBuffer.new()
-	codec.encode(parser.data, binary)
+	codec.encode_wire(parser.data, binary)
 	binary.seek(0)
 	return codec.decode(binary)
 

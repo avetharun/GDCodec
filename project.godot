@@ -11,12 +11,9 @@ config_version=5
 [application]
 
 config/name="CodecTest"
+run/main_scene="uid://bx734okgiqs4i"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
-
-[autoload]
-
-NewAutoloadScript="*uid://b0fuj7yv8m22y"
 
 [display]
 
