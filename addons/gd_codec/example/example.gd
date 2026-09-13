@@ -9,39 +9,62 @@ class Item:
 		self.slot = p_slot
 	func _to_string() -> String:
 		return item_id_test as String + "x" + str(count) + " at slot " + str(slot)
+
 class Inventory:
 	var items : Array[Item] = []
 	func _init(p_items : Array[Item]) -> void:
 		self.items = p_items
 	func _to_string() -> String:
 		return "Inventory with items: " + str(items)
+
+## Records are a codec type that can be stored as a dictionary.
+## However, Codec.mapof(k_codec, v_codec) will create an unformatted
+## Dictionary that will be of type Dictionary[KeyType, ValueType], assuming
+## xmap/smap/rmap is used. Dictionaries cannot be explicitly typed when used,
+## so proxies may need to be used when converting to and from a variable
+## such as Inventory.items
 static var item_codec : Codec = Codec.record({
 		"item_id":Codec.STRING_NAME,
 		"count": Codec.INT,
 		"slot": Codec.INT,
+		## The xmap function maps the base result (from parsing) into another type
+		## codec.smap maps the source result (in this case, Dictionary) from
+		## one type to another.
+		## codec.rmap maps the result (in this case, Item) into its base type
+		## which in this case, is a Dictionary.
 		}).xmap(
 				func(value:Dictionary) -> Item: return Item.new(value["item_id"], value["count"], value["slot"]),
 				func(item:Item) -> Dictionary: return {"item_id": item.item_id_test, "count": item.count, "slot": item.slot}
 		)
+
 static var inventory_codec : Codec = Codec.record({
 		"items": Codec.arrayof(item_codec),
 		}).xmap(
-			func(value:Dictionary) -> Inventory:
-				var items : Array[Item] = []
-				# Unfortunately, Godot will not allow casting this to Array[Item]
-				# so we need to proxy it into another array. Sorry!
-				items.append_array(value["items"])
-				return Inventory.new(items),
-			func(inventory:Inventory) -> Dictionary: return {"items": inventory.items}
+				func(value:Dictionary) -> Inventory:
+						var items : Array[Item] = []
+						# Unfortunately, Godot will not allow casting this to Array[Item]
+						# via a array.map() call, 
+						# so we need to proxy it into another array. Sorry!
+						items.append_array(value["items"])
+						return Inventory.new(items),
+				func(inventory:Inventory) -> Dictionary: return {"items": inventory.items}
 		)
 func _init() -> void:
 	var item1 := Item.new("a very cool sword", 1, 16)
 	var item2 := Item.new("a very cool shovel", 1, 14)
 	var inventory : Inventory = Inventory.new([item1, item2])
+	## These will encode the item and inventory into a JSON object, based on
+	## their codec.
 	print("Item 1: " + CodecOps.JSON_OPS.encode(item_codec, item1).data_array.get_string_from_utf8())
 	print("Item 2: " + CodecOps.JSON_OPS.encode(item_codec, item2).data_array.get_string_from_utf8())
 	print("Inventory: " + CodecOps.JSON_OPS.encode(inventory_codec, inventory).data_array.get_string_from_utf8())
-	print("Inventory (Parsed): " + str(CodecOps.JSON_OPS.decode_string(inventory_codec, '''{
+	
+	## This decoded/parses the inventory (and item) from a JSON object. This can
+	## be from a file, or represented as a string using decode_string(...)
+	## Since this example uses xmap on both the item and string, this will 
+	## result in both the Inventory and Item(s) to be valid objects to use 
+	## elsewhere
+	var decoded_inventory : Inventory = CodecOps.JSON_OPS.decode_dict(inventory_codec, {
 		"items":[
 			{
 				"item_id": "a demon's sword",
@@ -54,5 +77,6 @@ func _init() -> void:
 				"slot": 1
 			}
 		]
-	}''')))
+	})
+	print("Inventory (Parsed): " + str(decoded_inventory))
 	pass

@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://bx734okgiqs4i"]
+
+[ext_resource type="Script" uid="uid://c6mluxmh23crw" path="res://addons/gd_codec/example/example.gd" id="1_5ahq3"]
+
+[node name="Example" type="Node2D" unique_id=707931405]
+
+[node name="Node" type="Node" parent="." unique_id=383745004]
+script = ExtResource("1_5ahq3")

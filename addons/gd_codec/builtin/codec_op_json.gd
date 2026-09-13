@@ -20,6 +20,9 @@ func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	return codec.decode(binary)
 
 
+func decode_dict(codec:Codec, dict:Dictionary) -> Variant:
+	return decode_string(codec, JSON.stringify(dict))
+
 func encode(codec:Codec, value:Variant) -> StreamPeerBuffer:
 	assert(codec.is_record)
 	var b = StreamPeerBuffer.new()

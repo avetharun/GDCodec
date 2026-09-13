@@ -85,6 +85,7 @@ static var BYTE_ARRAY : Codec = Codec.new(
 			)
 )
 
+
 ## Creates a codec for nullable values. Wrapper for Codec.optional
 static func nullable(codec:Codec) -> Codec:
 	return optional(codec)
@@ -299,7 +300,7 @@ func decode(buf:StreamPeerBuffer)->Variant:
 
 
 ## Converts the result(Decoded) into another type[br]eg: [code]Codec.INT.map(func(result): return str(result))[/code][br]would result in a string represented by an uint32
-func map(mapper:Callable) -> Codec:
+func rmap(mapper:Callable) -> Codec:
 	var source:Codec = self
 	return Codec.new(
 		source.encoder,
