@@ -1,21 +1,4 @@
 extends Node
-class Item:
-	var item_id_test : StringName
-	var count : int
-	var slot : int
-	func _init(p_item_id : StringName, p_count : int, p_slot : int) -> void:
-		self.item_id_test = p_item_id
-		self.count = p_count
-		self.slot = p_slot
-	func _to_string() -> String:
-		return item_id_test as String + "x" + str(count) + " at slot " + str(slot)
-
-class Inventory:
-	var items : Array[Item] = []
-	func _init(p_items : Array[Item]) -> void:
-		self.items = p_items
-	func _to_string() -> String:
-		return "Inventory with items: " + str(items)
 
 ## Records are a codec type that can be stored as a dictionary.
 ## However, Codec.mapof(k_codec, v_codec) will create an unformatted
@@ -49,6 +32,21 @@ static var inventory_codec : Codec = Codec.record({
 						return Inventory.new(items),
 				func(inventory:Inventory) -> Dictionary: return {"items": inventory.items}
 		)
+
+## This is to test loading a BMP header, and determining the size of the image.
+## [br][url]https://www.ece.ualberta.ca/~elliott/ee552/studentAppNotes/2003_w/misc/bmp_file_format/bmp_file_format.htm[/url]
+## [br] The Codec.join function joins together data, such that it can be read
+## as a binary blob using CodecOps.BYTE_BUFFER_OPS[br]
+## Codec.byte_span will allow you to read the bytes used, 
+## however Codec.padding will not. Codec.padding will always return null
+static var bmp_test_codec : Codec = Codec.join([
+		Codec.byte_span(18), # Header and Size fields
+		Codec.INT, # Width (1)
+		Codec.INT, # Height (2)
+		Codec.byte_span(32), # Remaining part of InfoHeader.
+		]).rmap( # Map the result into a bmp header object
+			func(value:Array) -> BmpHeader: return BmpHeader.new(value[1], value[2])
+			)
 func _init() -> void:
 	var item1 := Item.new("a very cool sword", 1, 16)
 	var item2 := Item.new("a very cool shovel", 1, 14)
@@ -79,4 +77,36 @@ func _init() -> void:
 		]
 	})
 	print("Inventory (Parsed): " + str(decoded_inventory))
-	pass
+	var _bmp_data : PackedByteArray = FileAccess.get_file_as_bytes("uid://swymxv1dpht8")
+	## StreamPeerBuffer is used instead of PackedByteArray because it automatically
+	## resizes when modified, if needed
+	var _bmp_buf : StreamPeerBuffer = StreamPeerBuffer.new()
+	_bmp_buf.data_array = _bmp_data
+	print(CodecOps.BYTE_BUFFER_OPS.decode_buffer(bmp_test_codec, _bmp_buf) as BmpHeader)
+
+class Item:
+	var item_id_test : StringName
+	var count : int
+	var slot : int
+	func _init(p_item_id : StringName, p_count : int, p_slot : int) -> void:
+		self.item_id_test = p_item_id
+		self.count = p_count
+		self.slot = p_slot
+	func _to_string() -> String:
+		return item_id_test as String + "x" + str(count) + " at slot " + str(slot)
+
+class Inventory:
+	var items : Array[Item] = []
+	func _init(p_items : Array[Item]) -> void:
+		self.items = p_items
+	func _to_string() -> String:
+		return "Inventory with items: " + str(items)
+
+class BmpHeader:
+	var width:int
+	var height:int
+	func _init(p_width : int, p_height : int) -> void:
+		self.width = p_width
+		self.height = p_height
+	func _to_string() -> String:
+		return "Width: " + str(width) + " Height: " + str(height)

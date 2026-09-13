@@ -1,10 +1,10 @@
-class_name CodecOpsConfigFile extends CodecOps
+class_name CodecOpConfig extends CodecOps
 
 const SECTION : String = "data"
 
 
 func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
-	assert(codec.is_record)
+	assert(codec._is_record)
 	var value:Dictionary = codec.decode(buf)
 	var config : ConfigFile = ConfigFile.new()
 	for key in value:
@@ -15,7 +15,7 @@ func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 
 
 func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
-	assert(codec.is_record)
+	assert(codec._is_record)
 	var config := ConfigFile.new()
 	var error : Error = config.parse(buf.data_array.get_string_from_utf8())
 	assert(error == OK)
@@ -29,7 +29,7 @@ func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 
 
 func encode(codec:Codec, value:Variant) -> StreamPeerBuffer:
-	assert(codec.is_record)
+	assert(codec._is_record)
 	var binary : StreamPeerBuffer = StreamPeerBuffer.new()
 	codec.encode(value, binary)
 	binary.seek(0)

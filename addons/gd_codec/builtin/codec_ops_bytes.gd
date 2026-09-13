@@ -1,4 +1,4 @@
-class_name CodecOpsByteBuffer extends CodecOps
+class_name CodecOpBytes extends CodecOps
 
 
 func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
