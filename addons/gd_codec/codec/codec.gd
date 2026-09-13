@@ -73,7 +73,17 @@ static var DOUBLE_ARRAY : Codec = arrayof(DOUBLE)
 static var FLOAT_ARRAY : Codec = arrayof(FLOAT)
 static var BOOL_ARRAY : Codec = arrayof(BOOL)
 static var STRING_ARRAY : Codec = arrayof(STRING)
-
+static var BYTE_ARRAY : Codec = Codec.new(
+	Encoder.new(func(v:PackedByteArray, buf:StreamPeerBuffer):
+			buf.put_u32(v.size())
+			buf.put_data(v)
+			),
+	Decoder.new(func(buf:StreamPeerBuffer):
+			var len:int = buf.get_u32()
+			var result:Array = buf.get_data(len)
+			return result[1]
+			)
+)
 
 ## Creates a codec for nullable values. Wrapper for Codec.optional
 static func nullable(codec:Codec) -> Codec:
@@ -176,19 +186,6 @@ static func limited_string(max_length:int) -> Codec:
 				return result[1].get_string_from_utf8()
 				)
 	)
-
-
-static var BYTE_ARRAY : Codec = Codec.new(
-	Encoder.new(func(v:PackedByteArray, buf:StreamPeerBuffer):
-			buf.put_u32(v.size())
-			buf.put_data(v)
-			),
-	Decoder.new(func(buf:StreamPeerBuffer):
-			var len:int = buf.get_u32()
-			var result:Array = buf.get_data(len)
-			return result[1]
-			)
-)
 
 
 static func arrayof(codec:Codec) -> Codec:
