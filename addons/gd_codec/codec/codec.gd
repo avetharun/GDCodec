@@ -4,7 +4,7 @@ extends Object
 var encoder : Encoder
 var decoder : Decoder
 var is_record:bool = false
-
+const VERSION : int = 0000_1000_0000
 static var ENUM : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u64(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64()))

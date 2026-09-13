@@ -1,6 +1,7 @@
 class_name CodecOpsConfigFile extends CodecOps
 
-const SECTION := "data"
+const SECTION : String = "data"
+
 
 func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	assert(codec.is_record)
@@ -11,6 +12,7 @@ func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	var result := StreamPeerBuffer.new()
 	result.put_data(config.encode_to_text().to_utf8_buffer())
 	return result
+
 
 func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	assert(codec.is_record)
@@ -24,6 +26,7 @@ func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	codec.encode(value, binary)
 	binary.seek(0)
 	return codec.decode(binary)
+
 
 func encode(codec:Codec, value:Variant) -> StreamPeerBuffer:
 	assert(codec.is_record)

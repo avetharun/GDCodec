@@ -1,11 +1,13 @@
 class_name CodecOpJson extends CodecOps
 
+
 func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	assert(codec.is_record)
 	var value:Variant = codec.decode(buf)
 	var b = StreamPeerBuffer.new()
 	b.put_data(JSON.stringify(value).to_utf8_buffer())
 	return b
+
 
 func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	assert(codec.is_record)
@@ -16,6 +18,8 @@ func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	codec.encode(parser.data, binary)
 	binary.seek(0)
 	return codec.decode(binary)
+
+
 func encode(codec:Codec, value:Variant) -> StreamPeerBuffer:
 	assert(codec.is_record)
 	var b = StreamPeerBuffer.new()
