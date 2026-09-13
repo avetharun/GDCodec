@@ -95,7 +95,7 @@ static func padding(length:int) -> Codec:
 	assert(length >= 0)
 	return Codec.new(
 		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
-				var bytes := PackedByteArray()
+				var bytes : PackedByteArray = PackedByteArray()
 				bytes.resize(length)
 				buf.put_data(bytes)
 				),
@@ -236,7 +236,7 @@ static func mapof(key_codec:Codec, value_codec:Codec) -> Codec:
 ## Creates a record codec that encodes fields in the dictionary's declaration order.[br]This can be used to serialize from and to class objects, similarly to var_to_bytes
 static func record(fields:Dictionary) -> Codec:
 	var field_names:Array = fields.keys()
-	var codec := Codec.new(
+	var codec : Codec = Codec.new(
 		Encoder.new(func(v:Dictionary, buf:StreamPeerBuffer):
 				for field_name in field_names:
 					var field_codec:Codec = fields[field_name]

@@ -3,9 +3,9 @@
 class_name CodecOps
 extends Resource
 ## Base class for codec parsers and encoders
-static var JSON_OPS := CodecOpJson.new()
-static var BYTE_BUFFER_OPS := CodecOpsByteBuffer.new()
-static var CONFIG_OPS := CodecOpsConfigFile.new()
+static var JSON_OPS : CodecOpJson = CodecOpJson.new()
+static var BYTE_BUFFER_OPS : CodecOpsByteBuffer = CodecOpsByteBuffer.new()
+static var CONFIG_OPS : CodecOpsConfigFile = CodecOpsConfigFile.new()
 
 @abstract func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer
 
