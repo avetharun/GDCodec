@@ -499,10 +499,16 @@ func xmap(to:Callable, from:Callable) -> Codec:
 ## Sets the size of an encoded "length-prefixed" element in bits. [br]
 ## For example, Codec.arrayof(...).with_length_encoding(Codec.LengthEncoding.INT8) will use a
 ## single byte for the length of an array. Of course, 
-func with_length_encoding(p_length_encoding:LengthEncoding = LengthEncoding.INT32):
+func with_length_encoding(p_length_encoding:LengthEncoding = LengthEncoding.INT32) -> Codec:
 	self._length_encoding = p_length_encoding
 	return self
 
+## Sets this codec to be optional. Identical to calling Codec.optional(..., default)
+func with_optional(default:Variant) -> Codec:
+	return optional(self, default)
+
+func with_nullable() -> Codec:
+	return nullable(self)
 
 func _decode_length(buf:StreamPeerBuffer) -> int:
 	match(self._length_encoding):
