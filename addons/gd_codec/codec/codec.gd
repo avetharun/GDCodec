@@ -1,5 +1,7 @@
 @tool
 ## Serialization / Deserialization format creation
+## 
+## [br] Allows encoding and decoding with much more control than [method @GlobalScope.var_to_bytes]
 class_name Codec
 extends RefCounted
 var _encoder : Encoder
@@ -99,6 +101,79 @@ static var BOOL_ARRAY : Codec = arrayof(BOOL)
 static var STRING_ARRAY : Codec = arrayof(STRING)
 ## Array of Bytes (8-bit unsigned)
 static var BYTE_ARRAY : Codec = _length_prefixed_bytes()
+## Color (RGBA8, Int32 encoded)
+static var COLOR : Codec = Codec.INT.xmap(
+	func(source: int) -> Color: return Color.hex(source),
+	func(destination: Color) -> int: return destination.to_rgba32()
+)
+
+## Color (RGBA01, HDR format, Float encoded)
+static var COLOR_HDR : Codec = Codec.new(
+		Encoder.new(func(v:Color, buf:StreamPeerBuffer): buf.put_float(v.r); buf.put_float(v.g); buf.put_float(v.b); buf.put_float(v.a)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Color(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float()))
+)
+
+## Vector2 (64-bit)
+static var VECTOR2 : Codec = Codec.new(
+		Encoder.new(func(v:Vector2, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Vector2(buf.get_float(), buf.get_float()))
+)
+
+## Vector2i (32-bit)
+static var VECTOR2I : Codec = Codec.new(
+		Encoder.new(func(v:Vector2i, buf:StreamPeerBuffer): buf.put_32(v.x); buf.put_32(v.y)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Vector2i(buf.get_32(), buf.get_32()))
+)
+
+## Vector3 (64-bit)
+static var VECTOR3 : Codec = Codec.new(
+		Encoder.new(func(v:Vector3, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y); buf.put_float(v.z)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Vector3(buf.get_float(), buf.get_float(), buf.get_float()))
+)
+
+## Vector3i (32-bit)
+static var VECTOR3I : Codec = Codec.new(
+		Encoder.new(func(v:Vector3i, buf:StreamPeerBuffer): buf.put_32(v.x); buf.put_32(v.y); buf.put_32(v.z)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Vector3i(buf.get_32(), buf.get_32(), buf.get_32()))
+)
+
+## Quaternion
+static var QUATERNION : Codec = Codec.new(
+		Encoder.new(func(v:Quaternion, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y); buf.put_float(v.z); buf.put_float(v.w)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Quaternion(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float()))
+)
+
+## Native Godot Variant
+static var VARIANT : Codec = Codec.new(
+		Encoder.new(func(v, buf:StreamPeerBuffer): buf.put_var(v)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_var())
+)
+
+## Native Godot Variant, full objects and code enabled.[br]
+## [b]Warning[/b]: Deserialized objects can contain code which gets executed.
+## Do not use this option if the serialized object comes from untrusted sources
+## to avoid potential security threats such as remote code execution.
+static var VARIANT_WITH_OBJECTS : Codec = Codec.new(
+		Encoder.new(func(v, buf:StreamPeerBuffer): buf.put_var(v, true)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_var(true))
+)
+
+## Array of booleans that will be packed into a single byte.
+static var BITMASK_8 : Codec = Codec.new(
+		Encoder.new(func(v: Array, buf:StreamPeerBuffer):
+			var mask: int = 0
+			for i in range(min(v.size(), 8)):
+				if v[i]: mask |= (1 << i)
+			buf.put_u8(mask)
+			), 
+		Decoder.new(func(buf:StreamPeerBuffer) -> Array:
+			var mask: int = buf.get_u8()
+			var flags: Array = []
+			for i in range(8):
+				flags.append((mask & (1 << i)) != 0)
+			return flags
+			)
+)
 
 static func _length_prefixed_string() -> Codec:
 	var _r_codec : Codec = Codec.new()
@@ -457,14 +532,28 @@ class Encoder:
 	var _efunc : Callable
 	func _init(efunc:Callable) -> void:
 		self._efunc = efunc
+	
+	
+	## Encodes into the buffer
 	func encode(v:Variant, buf:StreamPeerBuffer):
 		_efunc.call(v, buf)
 class Decoder:
 	var _dfunc : Callable
 	func _init(dfunc:Callable) -> void:
 		self._dfunc = dfunc
+	
+	
+	## Decodes the buffer
 	func decode(buf:StreamPeerBuffer) -> Variant:
 		return _dfunc.call(buf)
+## Determines how large the length of an array type should be in bits
 enum LengthEncoding {
-	INT8, INT16, INT32, INT64
+	## Encodes length into 1 byte
+	INT8,
+	## Encodes length into 2 bytes
+	INT16,
+	## Encodes length into 4 bytes
+	INT32,
+	## Encodes length into 8 bytes
+	INT64
 }
