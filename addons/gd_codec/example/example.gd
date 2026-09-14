@@ -77,6 +77,13 @@ func _init() -> void:
 		]
 	})
 	print("Inventory (Parsed): " + str(decoded_inventory))
+	var span_codec : Codec = Codec.span(Codec.arrayof(Codec.BYTE).with_length_encoding(Codec.LengthEncoding.INT8), 4, [64,64])
+	var span_buf : StreamPeerBuffer = CodecOps.BYTE_BUFFER_OPS.encode(span_codec, [[1,2], [2,3]])
+	print("Span (Encoded): " + str(span_buf.data_array))
+	var decoded_span : Array = CodecOps.BYTE_BUFFER_OPS.decode_buffer(span_codec, span_buf)
+	print("Span (Padded): " + str(decoded_span))
+	assert(decoded_span == [[1,2], [2,3], [64,64], [64,64]])
+
 	var _bmp_data : PackedByteArray = FileAccess.get_file_as_bytes("uid://swymxv1dpht8")
 	## StreamPeerBuffer is used instead of PackedByteArray because it automatically
 	## resizes when modified, if needed

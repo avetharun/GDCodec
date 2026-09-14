@@ -13,7 +13,7 @@ config_version=5
 config/name="CodecTest"
 run/main_scene="uid://bx734okgiqs4i"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="uid://bsr532346io87"
 
 [display]
 
