@@ -238,24 +238,26 @@ static func byte_span(length:int) -> Codec:
 
 ## Creates a codec for nullable values. Wrapper for Codec.optional
 static func nullable(codec:Codec) -> Codec:
-	return optional(codec)
+	return optional(codec, null)
 
 
 ## Creates a codec for nullable values.
-static func optional(codec:Codec) -> Codec:
+static func optional(codec:Codec, default:Variant) -> Codec:
 	return Codec.new(
 		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
-				if v == null:
+				if v == null or v == default:
 					buf.put_u8(0)
 					return
 				buf.put_u8(1)
+				if v == null and v != default:
+					v = default
 				codec.encode(v, buf)
 				),
 		Decoder.new(func(buf:StreamPeerBuffer):
 				var marker:int = buf.get_u8()
 				assert(marker == 0 or marker == 1)
 				if marker == 0:
-					return null
+					return default
 				return codec.decode(buf)
 				)
 	)

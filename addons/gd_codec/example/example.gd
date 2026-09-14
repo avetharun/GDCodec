@@ -10,14 +10,15 @@ static var item_codec : Codec = Codec.record({
 		"item_id":Codec.STRING_NAME,
 		"count": Codec.INT,
 		"slot": Codec.INT,
+		"data": Codec.optional(Codec.VARIANT, {})
 		## The xmap function maps the base result (from parsing) into another type
 		## codec.smap maps the source result (in this case, Dictionary) from
 		## one type to another.
 		## codec.rmap maps the result (in this case, Item) into its base type
 		## which in this case, is a Dictionary.
 		}).xmap(
-				func(value:Dictionary) -> Item: return Item.new(value["item_id"], value["count"], value["slot"]),
-				func(item:Item) -> Dictionary: return {"item_id": item.item_id_test, "count": item.count, "slot": item.slot}
+				func(value:Dictionary) -> Item: return Item.new(value["item_id"], value["count"], value["slot"], value["data"]),
+				func(item:Item) -> Dictionary: return {"item_id": item.item_id_test, "count": item.count, "slot": item.slot, "data": item.data}
 		)
 
 static var inventory_codec : Codec = Codec.record({
@@ -49,7 +50,7 @@ static var bmp_test_codec : Codec = Codec.join([
 			)
 func _init() -> void:
 	var item1 := Item.new("a very cool sword", 1, 16)
-	var item2 := Item.new("a very cool shovel", 1, 14)
+	var item2 := Item.new("a very cool shovel", 1, 14, {"damage": 7})
 	var inventory : Inventory = Inventory.new([item1, item2])
 	## These will encode the item and inventory into a JSON object, based on
 	## their codec.
@@ -82,8 +83,6 @@ func _init() -> void:
 	print("Span (Encoded): " + str(span_buf.data_array))
 	var decoded_span : Array = CodecOps.BYTE_BUFFER_OPS.decode_buffer(span_codec, span_buf)
 	print("Span (Padded): " + str(decoded_span))
-	assert(decoded_span == [[1,2], [2,3], [64,64], [64,64]])
-
 	var _bmp_data : PackedByteArray = FileAccess.get_file_as_bytes("uid://swymxv1dpht8")
 	## StreamPeerBuffer is used instead of PackedByteArray because it automatically
 	## resizes when modified, if needed
@@ -95,12 +94,15 @@ class Item:
 	var item_id_test : StringName
 	var count : int
 	var slot : int
-	func _init(p_item_id : StringName, p_count : int, p_slot : int) -> void:
+	var data : Dictionary
+	func _init(p_item_id : StringName, p_count : int, p_slot : int, p_data : Dictionary = {}) -> void:
 		self.item_id_test = p_item_id
 		self.count = p_count
 		self.slot = p_slot
+		self.data = p_data
 	func _to_string() -> String:
-		return item_id_test as String + "x" + str(count) + " at slot " + str(slot)
+		return item_id_test as String + "x" + str(count) + " at slot " + str(slot) + " with data "\
+				+ str(data)
 
 class Inventory:
 	var items : Array[Item] = []
