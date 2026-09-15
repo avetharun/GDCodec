@@ -10,6 +10,7 @@ var _wire_encoder : Encoder
 var _is_record:bool = false
 var _length_encoding : LengthEncoding = LengthEncoding.INT32
 ## Enum (64-bit unsigned)
+## [br] [b]Warning:[/b] make sure to validate the output of this!
 static var ENUM : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u64(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64())
@@ -427,6 +428,34 @@ static func record(fields:Dictionary) -> Codec:
 				field_codec._encode_wire(v.get(field_name), buf)
 			)
 	return codec
+
+
+## Constructs an enum codec that will be represented as a string instead of an
+## integer.
+## [br] Returns [code]-1[/code] when the element is not found.
+## [br][b]Warning:[/b] ensure you modify the default_key param if you
+## have an element named "__INVALID__"
+## [br][b]Warning:[/b] ensure you do not have two keys that can be converted to
+## the same string when [param forced_case] is false,
+## eg 'some_key' and 'SOME_KEY'
+## [br][i]Reccomendation:[/i] have an "invalid" enum element and set it as
+## the default.
+static func enum_string(p_enum_type:Variant, default:int = -1, forced_case:bool = false, default_key:String = "__INVALID__"):
+	# Allows mapping a lowercase variant of the enum to the actual value
+	# forced_case is false
+	var tKeyMap : Dictionary[String, int] = {}
+	if forced_case:
+		tKeyMap = p_enum_type
+	else:
+		for key:String in p_enum_type.keys():
+			tKeyMap.set(key.to_lower(), p_enum_type.get(key))
+	return Codec.STRING.xmap(
+		func(e_s:String)->int: return tKeyMap.get(e_s if forced_case else e_s.to_lower(), default),
+		(func(e_i:int)->String: 
+				var _result = tKeyMap.find_key(e_i)
+				return _result if _result != null else default_key
+				)
+	)
 
 func _init(c_encoder:Encoder = null, c_decoder:Decoder = null) -> void:
 	self._encoder = c_encoder
