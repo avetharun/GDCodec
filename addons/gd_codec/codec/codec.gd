@@ -244,7 +244,7 @@ static func nullable(codec:Codec) -> Codec:
 
 ## Creates a codec for nullable values.
 static func optional(codec:Codec, default:Variant) -> Codec:
-	return Codec.new(
+	var optional_codec := Codec.new(
 		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
 				if v == null or v == default:
 					buf.put_u8(0)
@@ -262,6 +262,14 @@ static func optional(codec:Codec, default:Variant) -> Codec:
 				return codec.decode(buf)
 				)
 	)
+	optional_codec._wire_encoder = Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+				if v == null or v == default:
+					buf.put_u8(0)
+					return
+				buf.put_u8(1)
+				codec._encode_wire(v, buf)
+				)
+	return optional_codec
 
 
 ## Creates a zero-width codec that always decodes to value and validates the value during encoding.
@@ -456,7 +464,15 @@ static func enum_string(p_enum_type:Variant, default:int = -1, forced_case:bool 
 				return _result if _result != null else default_key
 				)
 	)
-
+static func get_enum_string_value(p_enum_type:Variant, e_key:String, default:int = -1, forced_case:bool = false):
+	if forced_case:
+		# assume it's safe
+		return p_enum_type.get(e_key)
+	for key:String in p_enum_type.keys():
+		#print(key.to_lower() + "==" + e_key.to_lower() + str(key.to_lower() == e_key.to_lower()))
+		if key.to_lower() == e_key.to_lower():
+			return p_enum_type.get(key)
+	return default
 func _init(c_encoder:Encoder = null, c_decoder:Decoder = null) -> void:
 	self._encoder = c_encoder
 	self._decoder = c_decoder
