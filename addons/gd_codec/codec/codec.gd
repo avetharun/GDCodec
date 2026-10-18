@@ -500,8 +500,9 @@ func _encode_wire(v:Variant, buf:StreamPeerBuffer):
 
 
 ## Encodes into the supplied buffer
-func encode(v:Variant, buf:StreamPeerBuffer):
+func encode(v:Variant, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	_encoder.encode(v, buf)
+	return buf
 
 
 
