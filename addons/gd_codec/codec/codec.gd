@@ -9,6 +9,8 @@ var _decoder : Decoder
 var _wire_encoder : Encoder
 var _is_record:bool = false
 var _length_encoding : LengthEncoding = LengthEncoding.INT32
+var _rmap_f : Callable = Callable()
+var _smap_f : Callable = Callable()
 ## Enum (64-bit unsigned)
 ## [br] [b]Warning:[/b] make sure to validate the output of this!
 static var ENUM : Codec = Codec.new(
@@ -511,19 +513,35 @@ func decode(buf:StreamPeerBuffer)->Variant:
 ## Converts the result(Decoded) into another type[br]eg: [code]Codec.INT.map(func(result): return str(result))[/code][br]would result in a string represented by an uint32
 func rmap(mapper:Callable) -> Codec:
 	var source:Codec = self
-	return Codec.new(
+	var codec = Codec.new(
 		source._encoder,
 		Decoder.new(func(buf:StreamPeerBuffer):return mapper.call(source.decode(buf)))
 	)
+	codec._rmap_f = mapper
+	return codec
+
+
+## Returns the mapper supplied in [code]to[/code] in the [code]xmap[/code]
+## function, or the mapper in [code]rmap[/code]
+func get_rmap() -> Callable:
+	return _rmap_f
+
+
+## Returns the mapper supplied in [code]from[/code] in the [code]xmap[/code]
+## function, or the mapper in [code]smap[/code]
+func get_smap() -> Callable:
+	return _smap_f
 
 
 ## Converts the source(Encoded) into another type[br]eg: [Code]Codec.INT.map(func(source): return int(result))[/code][br] would result in the inputs being casted as an uint32 
 func smap(mapper:Callable) -> Codec:
 	var source:Codec = self
-	return Codec.new(
+	var codec = Codec.new(
 		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):source.encode(mapper.call(v), buf)),
 		source._decoder
 	)
+	codec._smap_f = mapper
+	return codec
 
 
 ## Converts the result(Decoded) into another type and converts it back before encoding[br]eg: [code]Codec.INT.xmap(func(result): return str(result), func(value): return int(value))[/code][br]would result in a string represented by an uint32
@@ -537,6 +555,8 @@ func xmap(to:Callable, from:Callable) -> Codec:
 				return to.call(source.decode(buf))
 				)
 	)
+	codec._smap_f = from
+	codec._rmap_f = to
 	codec._is_record = source._is_record
 	codec._wire_encoder = source._wire_encoder
 	return codec
