@@ -290,29 +290,6 @@ static var BITMASK_8 : Codec = Codec.new(
 ).set_name("Bitmask8")
 
 
-static func _length_prefixed_string() -> Codec:
-	var _r_codec : Codec = Codec.new()
-	_r_codec._set_encoder(Encoder.new(func(v:String, buf:StreamPeerBuffer):
-		var data:PackedByteArray = v.to_utf8_buffer()
-		_r_codec._encode_length(buf, data.size())
-		buf.put_data(data)))
-	_r_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
-		var len:int = _r_codec._decode_length(buf)
-		var result:Array = buf.get_data(len)
-		return result[1].get_string_from_utf8()))
-	return _r_codec
-
-static func _length_prefixed_bytes() -> Codec:
-	var _r_codec : Codec = Codec.new()
-	_r_codec._set_encoder(Encoder.new(func(v:PackedByteArray, buf:StreamPeerBuffer):
-		_r_codec._encode_length(buf, v.size())
-		buf.put_data(v)))
-	_r_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
-		var len:int = _r_codec._decode_length(buf)
-		var result:Array = buf.get_data(len)
-		return result[1]))
-	return _r_codec
-
 ## Constant-width codec of an element type. [br]
 ## The default value must be encodable by this codec.
 static func span(codec:Codec, length:int, default:Variant) -> Codec:
@@ -445,6 +422,7 @@ static func join(codecs:Array) -> Codec:
 				)
 	)
 
+
 ## Creates a codec that represents a length-prefixed string with a max length
 static func limited_string(max_length:int) -> Codec:
 	assert(max_length >= 0)
@@ -461,6 +439,7 @@ static func limited_string(max_length:int) -> Codec:
 				return result[1].get_string_from_utf8()
 				))
 	return _r_codec
+
 
 ## Creates an array of codecs, formatted as NUM32[...]
 static func arrayof(codec:Codec) -> Codec:
@@ -605,6 +584,7 @@ static func enum_string(p_enum_type:Variant, default:int = -1, forced_case:bool 
 				return _result if _result != null else default_key
 				)
 	)
+## Gets the value from the result of [method Codec.enum_string]
 static func get_enum_string_value(p_enum_type:Variant, e_key:String, default:int = -1, forced_case:bool = false):
 	if forced_case:
 		# assume it's safe
@@ -614,28 +594,6 @@ static func get_enum_string_value(p_enum_type:Variant, e_key:String, default:int
 		if key.to_lower() == e_key.to_lower():
 			return p_enum_type.get(key)
 	return default
-func _init(c_encoder:Encoder = null, c_decoder:Decoder = null) -> void:
-	self._encoder = c_encoder
-	self._decoder = c_decoder
-	self._wire_encoder = c_encoder
-
-
-func _set_encoder(c_encoder:Encoder):
-	self._encoder = c_encoder
-	if (self._wire_encoder == null):
-		self._wire_encoder = c_encoder
-
-
-func _set_wire_encoder(c_wire_encoder:Encoder):
-	self._wire_encoder = c_wire_encoder
-
-
-func _set_decoder(c_decoder:Decoder):
-	self._decoder = c_decoder
-
-
-func _encode_wire(v:Variant, buf:StreamPeerBuffer):
-	_wire_encoder.encode(v, buf)
 
 
 ## Encodes into the supplied buffer
@@ -683,11 +641,11 @@ func get_smap() -> Callable:
 	return _smap_f
 
 
-## Creates a codec that maps field codecs to and from instances of [param c_type].
-## Params require pairs of Codec and a raw [StringName] or [CodecBiRef] in the following format:
-## [CODEC_TYPE, &"field_name", ...]
-## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.
-## Native classes require an explicit constructor callable in [param c_ctor].
+## Creates a codec that maps field codecs to and from instances of [param c_type].[br]
+## Params require pairs of Codec and a raw [StringName] or [CodecBiRef] in the following format:[br]
+## [code][CODEC_TYPE, &"field_name", ...][/code][br]
+## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.[br]
+## Native classes require an explicit constructor callable in [param c_ctor].[br]
 ## JSON serialization uses field names from [CodecBiRef.json_name].
 static func bicast(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
 	var c : Codec = Codec.new()
@@ -778,6 +736,136 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = 
 	return self
 
 
+## Converts the source(Encoded) into another type[br]eg: [Code]Codec.INT.map(func(source): return int(result))[/code][br] would result in the inputs being casted as an uint32 
+func smap(mapper:Callable) -> Codec:
+	var source:Codec = self
+	var codec = Codec.new(
+		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):source.encode(mapper.call(v), buf)),
+		source._decoder
+	)
+	codec._smap_f = mapper
+	codec._json_smap_f = func(v:Variant) -> Variant:
+		var mapped:Variant = mapper.call(v)
+		if not source._json_smap_f.is_null():
+			return source._json_smap_f.call(mapped)
+		return mapped
+	return codec
+
+
+## Converts the result(Decoded) into another type and converts it back before encoding[br]eg: [code]Codec.INT.xmap(func(result): return str(result), func(value): return int(value))[/code][br]would result in a string represented by an uint32
+func xmap(to:Callable, from:Callable) -> Codec:
+	var source:Codec = self
+	var codec := Codec.new(
+		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+				source.encode(from.call(v), buf)
+				),
+		Decoder.new(func(buf:StreamPeerBuffer):
+				return to.call(source.decode(buf))
+				)
+	)
+	codec._smap_f = from
+	codec._rmap_f = to
+	codec._is_record = source._is_record
+	codec._wire_encoder = source._wire_encoder
+	codec._json_wire_encoder = source._json_wire_encoder
+	codec._json_smap_f = func(v:Variant) -> Variant:
+		var mapped:Variant = from.call(v)
+		if not source._json_smap_f.is_null():
+			return source._json_smap_f.call(mapped)
+		return mapped
+	return codec
+
+
+## Creates a field reference for [method Codec.bicast]. If [param name] is empty,
+## the JSON name is inferred from [param field]. Method names beginning with
+## [code]get_[/code], [code]has_[/code], or [code]is_[/code] have their prefix removed automatically.[br]
+## [i]Note: The JSON name is only used when encoding/decoding with [CodecOpJson]p[/i]
+static func field(field:Variant, type:FieldType=FieldType.Field, name : String = String()) -> CodecBiRef:
+	var biref : CodecBiRef = CodecBiRef.new()
+	assert(field is Callable or field is StringName or field is String, "Codec.field must be either a StringName or a Callable getter!")
+	var field_name:StringName
+	if field is Callable:
+		assert(field.get_argument_count() == 0, "Getter field for Codec.field cannot have arguments! It must be a getter!")
+		biref.ref_type = CodecBiRef.RefType.GETTER_NAME
+		biref.field_getter = field
+		biref.field_name = field.get_method()
+		biref.field_type = type
+		field_name = biref.field_name
+	elif field is StringName or field is String:
+		biref.ref_type = CodecBiRef.RefType.NAME
+		biref.field_name = field as StringName
+		biref.field_type = type
+		field_name = biref.field_name
+	biref.json_name = StringName(name) if not name.is_empty() else _json_name_from_field(field_name, field is Callable or type == FieldType.Method)
+	return biref
+
+
+## Sets the size of an encoded "length-prefixed" element in bits. [br]
+## For example, Codec.arrayof(...).with_length_encoding(Codec.LengthEncoding.INT8) will use a
+## single byte for the length of an array. Of course, 
+func with_length_encoding(p_length_encoding:LengthEncoding = LengthEncoding.INT32) -> Codec:
+	self._length_encoding = p_length_encoding
+	return self
+
+
+## Sets this codec to be optional. Identical to calling Codec.optional(..., default)
+func with_optional(default:Variant) -> Codec:
+	return optional(self, default)
+
+
+func with_nullable() -> Codec:
+	return nullable(self)
+
+
+func _init(c_encoder:Encoder = null, c_decoder:Decoder = null) -> void:
+	self._encoder = c_encoder
+	self._decoder = c_decoder
+	self._wire_encoder = c_encoder
+
+
+func _set_encoder(c_encoder:Encoder):
+	self._encoder = c_encoder
+	if (self._wire_encoder == null):
+		self._wire_encoder = c_encoder
+
+
+func _set_wire_encoder(c_wire_encoder:Encoder):
+	self._wire_encoder = c_wire_encoder
+
+
+func _set_decoder(c_decoder:Decoder):
+	self._decoder = c_decoder
+
+
+func _encode_wire(v:Variant, buf:StreamPeerBuffer):
+	_wire_encoder.encode(v, buf)
+
+
+static func _length_prefixed_string() -> Codec:
+	var _r_codec : Codec = Codec.new()
+	_r_codec._set_encoder(Encoder.new(func(v:String, buf:StreamPeerBuffer):
+		var data:PackedByteArray = v.to_utf8_buffer()
+		_r_codec._encode_length(buf, data.size())
+		buf.put_data(data)))
+	_r_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
+		var len:int = _r_codec._decode_length(buf)
+		var result:Array = buf.get_data(len)
+		return result[1].get_string_from_utf8()))
+	return _r_codec
+
+
+static func _length_prefixed_bytes() -> Codec:
+	var _r_codec : Codec = Codec.new()
+	_r_codec._set_encoder(Encoder.new(func(v:PackedByteArray, buf:StreamPeerBuffer):
+		_r_codec._encode_length(buf, v.size())
+		buf.put_data(v)))
+	_r_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
+		var len:int = _r_codec._decode_length(buf)
+		var result:Array = buf.get_data(len)
+		return result[1]))
+	return _r_codec
+
+
 func _bicast_instance_matches(value:Variant, c_type:Variant) -> bool:
 	if not value is Object:
 		return false
@@ -822,59 +910,6 @@ func _script_inherits_from(cs:Script, ts:Script) -> bool:
 	return false
 
 
-## Converts the source(Encoded) into another type[br]eg: [Code]Codec.INT.map(func(source): return int(result))[/code][br] would result in the inputs being casted as an uint32 
-func smap(mapper:Callable) -> Codec:
-	var source:Codec = self
-	var codec = Codec.new(
-		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):source.encode(mapper.call(v), buf)),
-		source._decoder
-	)
-	codec._smap_f = mapper
-	codec._json_smap_f = func(v:Variant) -> Variant:
-		var mapped:Variant = mapper.call(v)
-		if not source._json_smap_f.is_null():
-			return source._json_smap_f.call(mapped)
-		return mapped
-	return codec
-
-
-## Converts the result(Decoded) into another type and converts it back before encoding[br]eg: [code]Codec.INT.xmap(func(result): return str(result), func(value): return int(value))[/code][br]would result in a string represented by an uint32
-func xmap(to:Callable, from:Callable) -> Codec:
-	var source:Codec = self
-	var codec := Codec.new(
-		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
-				source.encode(from.call(v), buf)
-				),
-		Decoder.new(func(buf:StreamPeerBuffer):
-				return to.call(source.decode(buf))
-				)
-	)
-	codec._smap_f = from
-	codec._rmap_f = to
-	codec._is_record = source._is_record
-	codec._wire_encoder = source._wire_encoder
-	codec._json_wire_encoder = source._json_wire_encoder
-	codec._json_smap_f = func(v:Variant) -> Variant:
-		var mapped:Variant = from.call(v)
-		if not source._json_smap_f.is_null():
-			return source._json_smap_f.call(mapped)
-		return mapped
-	return codec
-
-## Sets the size of an encoded "length-prefixed" element in bits. [br]
-## For example, Codec.arrayof(...).with_length_encoding(Codec.LengthEncoding.INT8) will use a
-## single byte for the length of an array. Of course, 
-func with_length_encoding(p_length_encoding:LengthEncoding = LengthEncoding.INT32) -> Codec:
-	self._length_encoding = p_length_encoding
-	return self
-
-## Sets this codec to be optional. Identical to calling Codec.optional(..., default)
-func with_optional(default:Variant) -> Codec:
-	return optional(self, default)
-
-func with_nullable() -> Codec:
-	return nullable(self)
-
 func _decode_length(buf:StreamPeerBuffer) -> int:
 	match(self._length_encoding):
 		LengthEncoding.INT8: return buf.get_u8()
@@ -904,34 +939,6 @@ func _encode_length(buf:StreamPeerBuffer, length:int):
 			assert(length <= INT64_MAX, "Length encoding exceeded bounds: " + str(INT64_MAX))
 			buf.put_u64(length)
 		_:assert(false, "Length encoding was not valid: " + str(self._length_encoding))
-## Which field format to prefer
-## [br] Method: Will attempt to use the method name using instance.call(field)
-## [br] Field: Will attempt to use the field name using instance.get(field)
-enum FieldType {
-	Method, Field
-}
-## Creates a field reference for [method Codec.bicast]. If [param name] is empty,
-## the JSON name is inferred from [param field]; method names beginning with
-## [code]get_[/code], [code]has_[/code], or [code]is_[/code] have that prefix removed.
-static func field(field:Variant, type:FieldType=FieldType.Field, name : String = String()) -> CodecBiRef:
-	var biref : CodecBiRef = CodecBiRef.new()
-	assert(field is Callable or field is StringName or field is String, "Codec.field must be either a StringName or a Callable getter!")
-	var field_name:StringName
-	if field is Callable:
-		assert(field.get_argument_count() == 0, "Getter field for Codec.field cannot have arguments! It must be a getter!")
-		biref.ref_type = CodecBiRef.RefType.GETTER_NAME
-		biref.field_getter = field
-		biref.field_name = field.get_method()
-		biref.field_type = type
-		field_name = biref.field_name
-	elif field is StringName or field is String:
-		biref.ref_type = CodecBiRef.RefType.NAME
-		biref.field_name = field as StringName
-		biref.field_type = type
-		field_name = biref.field_name
-	biref.json_name = StringName(name) if not name.is_empty() else _json_name_from_field(field_name, field is Callable or type == FieldType.Method)
-	return biref
-
 
 static func _json_name_from_field(field_name:StringName, is_method:bool) -> StringName:
 	var name:String = String(field_name)
@@ -980,4 +987,11 @@ enum LengthEncoding {
 	INT32,
 	## Encodes length into 8 bytes
 	INT64
+}
+
+## Which field format to prefer
+## [br] Method: Will attempt to use the method name using instance.call(field)
+## [br] Field: Will attempt to use the field name using instance.get(field)
+enum FieldType {
+	Method, Field
 }
