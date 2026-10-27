@@ -9,146 +9,257 @@ var _decoder : Decoder
 var _wire_encoder : Encoder
 var _is_record:bool = false
 var _length_encoding : LengthEncoding = LengthEncoding.INT32
+var _rmap_f : Callable = Callable()
+var _smap_f : Callable = Callable()
+var _cd_name : StringName = _UNNAMED_CODEC
+const _UNNAMED_CODEC : StringName = "Unnamed"
 ## Enum (64-bit unsigned)
 ## [br] [b]Warning:[/b] make sure to validate the output of this!
 static var ENUM : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u64(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64())
-)
+).set_name("Enum")
 ## Long (64-bit unsigned)
 static var LONG : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u64(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u64())
-)
+).set_name("U64")
 ## Int (32-bit unsigned)
 static var INT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u32(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u32())
-)
+).set_name("U32")
 ## Short (16-bit unsigned)
 static var SHORT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u16(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u16())
-)
+).set_name("U16")
 ## Byte (8-bit unsigned)
 static var BYTE : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_u8(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_u8())
-)
+).set_name("U8")
 ## Long (64-bit signed)
 static var SIGNED_LONG : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_64(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_64())
-)
+).set_name("S64")
 ## Int (32-bit signed)
 static var SIGNED_INT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_32(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_32())
-)
+).set_name("S32")
 ## Short (16-bit signed)
 static var SIGNED_SHORT : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_16(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_16())
-)
+).set_name("S16")
 ## Byte (8-bit signed)
 static var SIGNED_BYTE : Codec = Codec.new(
 		Encoder.new(func(v:int, buf:StreamPeerBuffer): buf.put_8(v as int)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_8())
-)
+).set_name("S8")
 ## Double
 static var DOUBLE : Codec = Codec.new(
 		Encoder.new(func(v:float, buf:StreamPeerBuffer): buf.put_double(v)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_double())
-)
+).set_name("Double")
 ## Float
 static var FLOAT : Codec = Codec.new(
 		Encoder.new(func(v:float, buf:StreamPeerBuffer): buf.put_float(v)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_float())
-)
+).set_name("Float")
 ## Boolean (8-bit unsigned)
 ## [br] Note: this is not a bitmask
 static var BOOL : Codec = Codec.new(
 		Encoder.new(func(v:bool, buf:StreamPeerBuffer): buf.put_u8(1 if v else 0)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return true if buf.get_u8() == 1 else false)
-)
+).set_name("Boolean")
 ## Length-prefixed String
-static var STRING : Codec = _length_prefixed_string()
+static var STRING : Codec = _length_prefixed_string().set_name("String")
 ## Variant of [member Codec.STRING] that will convert into a StringName automatically
 static var STRING_NAME: Codec = STRING.xmap(
 		func(source: String) -> StringName: return StringName(source),
 		func(destination: StringName) -> String: return String(destination)
-)
+).set_name("StringName")
 ## Array of Longs (64-bit unsigned)
-static var LONG_ARRAY : Codec = arrayof(LONG)
+static var LONG_ARRAY : Codec = arrayof(LONG).set_name("U64Array")
 ## Array of Ints (32-bit unsigned)
-static var INT_ARRAY : Codec = arrayof(INT)
+static var INT_ARRAY : Codec = arrayof(INT).set_name("U32Array")
 ## Array of Shorts (16-bit unsigned)
-static var SHORT_ARRAY : Codec = arrayof(SHORT)
+static var SHORT_ARRAY : Codec = arrayof(SHORT).set_name("U16Array")
 ## Array of Longs (64-bit signed)
-static var SIGNED_LONG_ARRAY : Codec = arrayof(SIGNED_LONG)
+static var SIGNED_LONG_ARRAY : Codec = arrayof(SIGNED_LONG).set_name("S64Array")
 ## Array of Ints (32-bit signed)
-static var SIGNED_INT_ARRAY : Codec = arrayof(SIGNED_INT)
+static var SIGNED_INT_ARRAY : Codec = arrayof(SIGNED_INT).set_name("S32Array")
 ## Array of Shorts (16-bit signed)
-static var SIGNED_SHORT_ARRAY : Codec = arrayof(SIGNED_SHORT)
+static var SIGNED_SHORT_ARRAY : Codec = arrayof(SIGNED_SHORT).set_name("S16Array")
 ## Array of Bytes (8-bit signed)
-static var SIGNED_BYTE_ARRAY : Codec = arrayof(SIGNED_BYTE)
+static var SIGNED_BYTE_ARRAY : Codec = arrayof(SIGNED_BYTE).set_name("S8Array")
 ## Array of Doubles
-static var DOUBLE_ARRAY : Codec = arrayof(DOUBLE)
+static var DOUBLE_ARRAY : Codec = arrayof(DOUBLE).set_name("DoubleArray")
 ## Array of Floats
-static var FLOAT_ARRAY : Codec = arrayof(FLOAT)
+static var FLOAT_ARRAY : Codec = arrayof(FLOAT).set_name("FloatArray")
 ## Array of Booleans (8-bit unsigned)
-static var BOOL_ARRAY : Codec = arrayof(BOOL)
+static var BOOL_ARRAY : Codec = arrayof(BOOL).set_name("BoolArray")
 ## Array of length-prefixed Strings
-static var STRING_ARRAY : Codec = arrayof(STRING)
+static var STRING_ARRAY : Codec = arrayof(STRING).set_name("StringArray")
 ## Array of Bytes (8-bit unsigned)
-static var BYTE_ARRAY : Codec = _length_prefixed_bytes()
+static var BYTE_ARRAY : Codec = _length_prefixed_bytes().set_name("U8Array")
+## Array of Color (RGBA8, Int32 encoded)
+static var COLOR_ARRAY : Codec = arrayof(COLOR).set_name("ColorArray")
+## Array of Color (RGBA01, HDR format, Float encoded)
+static var COLOR_HDR_ARRAY : Codec = arrayof(COLOR).set_name("ColorHDRArray")
+## Array of Bytes (mapped to [PackedByteArray])
+static var PACKED_BYTE_ARRAY : Codec = BYTE_ARRAY.xmap(
+	func(source: PackedByteArray) -> PackedByteArray: return source,
+	func(destination: PackedByteArray) -> PackedByteArray: return destination
+)
+## Array of Colors (RGBA8, mapped to [PackedColorArray])
+static var PACKED_COLOR_ARRAY : Codec = COLOR_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedColorArray: return PackedColorArray(source),
+	func(destination: PackedColorArray) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Colors (RGBA01, HDR format, mapped to [PackedColorArray])
+static var PACKED_COLOR_HDR_ARRAY : Codec = COLOR_HDR_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedColorArray: return PackedColorArray(source),
+	func(destination: PackedColorArray) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Floats (mapped to [PackedFloat32Array])
+static var PACKED_FLOAT32_ARRAY : Codec = FLOAT_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedFloat32Array: return PackedFloat32Array(source),
+	func(destination: PackedFloat32Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Floats (mapped to [PackedFloat32Array])
+static var PACKED_FLOAT_ARRAY : Codec = PACKED_FLOAT32_ARRAY
+
+## Array of Doubles (mapped to [PackedFloat64Array])
+static var PACKED_FLOAT64_ARRAY : Codec = DOUBLE_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedFloat64Array: return PackedFloat64Array(source),
+	func(destination: PackedFloat64Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Doubles (mapped to [PackedFloat64Array])
+static var PACKED_DOUBLE_ARRAY : Codec = PACKED_FLOAT64_ARRAY
+## Array of Ints (mapped to [PackedInt32Array])
+static var PACKED_INT32_ARRAY : Codec = SIGNED_INT_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedInt32Array: return PackedInt32Array(source),
+	func(destination: PackedInt32Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Longs (mapped to [PackedInt64Array])
+static var PACKED_INT64_ARRAY : Codec = SIGNED_LONG_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedInt64Array: return PackedInt64Array(source),
+	func(destination: PackedInt64Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Strings (mapped to [PackedStringArray])
+static var PACKED_STRING_ARRAY : Codec = STRING_ARRAY.xmap(
+	func(source: Array[Variant]) -> PackedStringArray: return PackedStringArray(source),
+	func(destination: PackedStringArray) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Vector2 (mapped to [PackedVector2Array])
+static var PACKED_VECTOR2_ARRAY : Codec = arrayof(VECTOR2).xmap(
+	func(source: Array[Variant]) -> PackedVector2Array: return PackedVector2Array(source),
+	func(destination: PackedVector2Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Vector3 (mapped to [PackedVector3Array])
+static var PACKED_VECTOR3_ARRAY : Codec = arrayof(VECTOR3).xmap(
+	func(source: Array[Variant]) -> PackedVector3Array: return PackedVector3Array(source),
+	func(destination: PackedVector3Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+## Array of Vector4 (mapped to [PackedVector4Array])
+static var PACKED_VECTOR4_ARRAY : Codec = arrayof(VECTOR4).xmap(
+	func(source: Array[Variant]) -> PackedVector4Array: return PackedVector4Array(source),
+	func(destination: PackedVector4Array) -> Array[Variant]:
+		var values: Array[Variant] = []
+		values.assign(destination)
+		return values
+)
+
 ## Color (RGBA8, Int32 encoded)
 static var COLOR : Codec = Codec.INT.xmap(
 	func(source: int) -> Color: return Color.hex(source),
 	func(destination: Color) -> int: return destination.to_rgba32()
-)
+).set_name("Color8")
 
 ## Color (RGBA01, HDR format, Float encoded)
 static var COLOR_HDR : Codec = Codec.new(
 		Encoder.new(func(v:Color, buf:StreamPeerBuffer): buf.put_float(v.r); buf.put_float(v.g); buf.put_float(v.b); buf.put_float(v.a)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return Color(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float()))
-)
+).set_name("ColorHDR")
 
 ## Vector2 (64-bit)
 static var VECTOR2 : Codec = Codec.new(
 		Encoder.new(func(v:Vector2, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return Vector2(buf.get_float(), buf.get_float()))
-)
+).set_name("Vector2")
 
 ## Vector2i (32-bit)
 static var VECTOR2I : Codec = Codec.new(
 		Encoder.new(func(v:Vector2i, buf:StreamPeerBuffer): buf.put_32(v.x); buf.put_32(v.y)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return Vector2i(buf.get_32(), buf.get_32()))
-)
+).set_name("Vector2i")
 
 ## Vector3 (64-bit)
 static var VECTOR3 : Codec = Codec.new(
 		Encoder.new(func(v:Vector3, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y); buf.put_float(v.z)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return Vector3(buf.get_float(), buf.get_float(), buf.get_float()))
-)
+).set_name("Vector3")
 
 ## Vector3i (32-bit)
 static var VECTOR3I : Codec = Codec.new(
 		Encoder.new(func(v:Vector3i, buf:StreamPeerBuffer): buf.put_32(v.x); buf.put_32(v.y); buf.put_32(v.z)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return Vector3i(buf.get_32(), buf.get_32(), buf.get_32()))
-)
+).set_name("Vector3i")
+
+## Vector4 (64-bit)
+static var VECTOR4 : Codec = Codec.new(
+		Encoder.new(func(v:Vector4, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y); buf.put_float(v.z); buf.put_float(v.w)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Vector4(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float()))
+).set_name("Vector4")
+
+## Vector4i (32-bit)
+static var VECTOR4I : Codec = Codec.new(
+		Encoder.new(func(v:Vector4i, buf:StreamPeerBuffer): buf.put_32(v.x); buf.put_32(v.y); buf.put_32(v.z); buf.put_32(v.w)), 
+		Decoder.new(func(buf:StreamPeerBuffer): return Vector4i(buf.get_32(), buf.get_32(), buf.get_32(), buf.get_32()))
+).set_name("Vector4i")
 
 ## Quaternion
 static var QUATERNION : Codec = Codec.new(
 		Encoder.new(func(v:Quaternion, buf:StreamPeerBuffer): buf.put_float(v.x); buf.put_float(v.y); buf.put_float(v.z); buf.put_float(v.w)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return Quaternion(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float()))
-)
+).set_name("Quaternion")
 
 ## Native Godot Variant
 static var VARIANT : Codec = Codec.new(
 		Encoder.new(func(v, buf:StreamPeerBuffer): buf.put_var(v)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_var())
-)
+).set_name("Variant")
 
 ## Native Godot Variant, full objects and code enabled.[br]
 ## [b]Warning[/b]: Deserialized objects can contain code which gets executed.
@@ -157,7 +268,7 @@ static var VARIANT : Codec = Codec.new(
 static var VARIANT_WITH_OBJECTS : Codec = Codec.new(
 		Encoder.new(func(v, buf:StreamPeerBuffer): buf.put_var(v, true)), 
 		Decoder.new(func(buf:StreamPeerBuffer): return buf.get_var(true))
-)
+).set_name("VariantWithObject")
 
 ## Array of booleans that will be packed into a single byte.
 static var BITMASK_8 : Codec = Codec.new(
@@ -174,7 +285,8 @@ static var BITMASK_8 : Codec = Codec.new(
 				flags.append((mask & (1 << i)) != 0)
 			return flags
 			)
-)
+).set_name("Bitmask8")
+
 
 static func _length_prefixed_string() -> Codec:
 	var _r_codec : Codec = Codec.new()
@@ -498,9 +610,20 @@ func _encode_wire(v:Variant, buf:StreamPeerBuffer):
 
 
 ## Encodes into the supplied buffer
-func encode(v:Variant, buf:StreamPeerBuffer):
+func encode(v:Variant, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	_encoder.encode(v, buf)
+	return buf
 
+
+## Gets the name of the codec. If not valid, returns "Unnamed_Codec"
+func get_name() -> StringName:
+	return self._cd_name
+
+
+## Sets the name of the codec (Returned when calling to_string)
+func set_name(name:StringName) -> Codec:
+	self._cd_name = name
+	return self
 
 
 ## Decodes from the supplied buffer
@@ -511,19 +634,139 @@ func decode(buf:StreamPeerBuffer)->Variant:
 ## Converts the result(Decoded) into another type[br]eg: [code]Codec.INT.map(func(result): return str(result))[/code][br]would result in a string represented by an uint32
 func rmap(mapper:Callable) -> Codec:
 	var source:Codec = self
-	return Codec.new(
+	var codec = Codec.new(
 		source._encoder,
 		Decoder.new(func(buf:StreamPeerBuffer):return mapper.call(source.decode(buf)))
 	)
+	codec._rmap_f = mapper
+	return codec
+
+
+## Returns the mapper supplied in [code]to[/code] in the [code]xmap[/code]
+## function, or the mapper in [code]rmap[/code]
+func get_rmap() -> Callable:
+	return _rmap_f
+
+
+## Returns the mapper supplied in [code]from[/code] in the [code]xmap[/code]
+## function, or the mapper in [code]smap[/code]
+func get_smap() -> Callable:
+	return _smap_f
+
+
+## Creates a codec that maps field codecs to and from instances of [param c_type].
+## Params require pairs of Codec and a raw [StringName] or [CodecBiRef] in the following format:
+## [CODEC_TYPE, &"field_name", ...]
+## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.
+static func bicast(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = Callable()) -> Codec:
+	var c : Codec = Codec.new()
+	return c._bicast_map(bi_pairs, c_type, c_ctor)
+
+
+func _bicast_map(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = Callable()) -> Codec:
+	assert(bi_pairs.size() % 2 == 0, "Missing field name for Codec.")
+	var field_codecs : Array[Codec] = []
+	var field_accessors : Array[Callable] = []
+	for i in range(0, bi_pairs.size(), 2):
+		assert(bi_pairs[i] is Codec, "Expected a Codec at index %d." % i)
+		assert(bi_pairs[i + 1] is StringName or bi_pairs[i + 1] is CodecBiRef, "Expected a StringName or CodecBiRef at index %d." % (i + 1))
+		field_codecs.append(bi_pairs[i] as Codec)
+		field_accessors.append(_bicast_field_accessor(bi_pairs[i + 1]))
+
+	var ctor : Callable = c_type.new if c_ctor.is_null() else c_ctor
+	var ctor_name : StringName = &"_init" if c_ctor.is_null() else c_ctor.get_method()
+	var ctor_arg_count:int = -1
+	for method:Dictionary in c_type.get_script_method_list():
+		if method.name == ctor_name:
+			ctor_arg_count = method.args.size()
+			break
+	if ctor_arg_count == -1:
+		ctor_arg_count = c_ctor.get_argument_count()
+		if c_ctor == c_type.new:
+			push_error("Cannot use bicast on constructor [new] when there are custom arguments!")
+	assert(ctor_arg_count == field_codecs.size(), "%s %s must have exactly as many arguments as the mapping! Expected: %d, found: %d" % [c_type.get_global_name(), ctor_name, field_codecs.size(), ctor_arg_count])
+
+	self._smap_f = func(v:Variant) -> Array[Variant]:
+		assert(v is Object and _script_inherits_from(v.get_script(), c_type), "Value must be an instance of %s." % c_type.get_global_name())
+		var values:Array[Variant] = []
+		for i in range(field_codecs.size()):
+			values.append(field_accessors[i].call(v))
+		return values
+
+	self._rmap_f = func(values:Array[Variant]) -> Variant:
+		assert(values.size() == field_codecs.size())
+		var value:Variant = ctor.callv(values)
+		assert(value is Object and _script_inherits_from(value.get_script(), c_type), "Constructor must return an instance of %s." % c_type.get_global_name())
+		return value
+
+	var encode_fields := func(v:Variant, buf:StreamPeerBuffer, wire:bool = false) -> void:
+		var values:Array[Variant] = self._smap_f.call(v)
+		for i in range(field_codecs.size()):
+			if wire:
+				field_codecs[i]._encode_wire(values[i], buf)
+			else:
+				field_codecs[i].encode(values[i], buf)
+
+	self._encoder = Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		encode_fields.call(v, buf)
+	)
+	self._wire_encoder = Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		encode_fields.call(v, buf, true)
+	)
+	self._decoder = Decoder.new(func(buf:StreamPeerBuffer) -> Variant:
+		var values:Array[Variant] = []
+		for codec:Codec in field_codecs:
+			values.append(codec.decode(buf))
+		return self._rmap_f.call(values)
+	)
+	return self
+
+
+func _bicast_field_accessor(field_ref:Variant) -> Callable:
+	if field_ref is StringName:
+		var field_name:StringName = field_ref as StringName
+		return func(instance:Object) -> Variant:
+			return instance.get(field_name)
+
+	var bi_ref:CodecBiRef = field_ref as CodecBiRef
+	if bi_ref.ref_type == CodecBiRef.RefType.GETTER_NAME and not bi_ref.field_getter.is_null():
+		var getter:Callable = bi_ref.field_getter
+		return func(_instance:Object) -> Variant:
+			return getter.call()
+
+	match bi_ref.field_type:
+		FieldType.Method:
+			assert(not bi_ref.field_name.is_empty(), "Method fields require a method name.")
+			var method_field_name:StringName = bi_ref.field_name
+			return func(instance:Object) -> Variant:
+				return instance.call(method_field_name)
+		FieldType.Field:
+			assert(not bi_ref.field_name.is_empty(), "Field references require a field name.")
+			var property_name:StringName = bi_ref.field_name
+			return func(instance:Object) -> Variant:
+				return instance.get(property_name)
+	assert(false, "Invalid CodecBiRef field type.")
+	return Callable()
+
+
+func _script_inherits_from(cs:Script, ts:Script) -> bool:
+	var current:Script = cs
+	while current != null:
+		if current == ts:
+			return true
+		current = current.get_base_script()
+	return false
 
 
 ## Converts the source(Encoded) into another type[br]eg: [Code]Codec.INT.map(func(source): return int(result))[/code][br] would result in the inputs being casted as an uint32 
 func smap(mapper:Callable) -> Codec:
 	var source:Codec = self
-	return Codec.new(
+	var codec = Codec.new(
 		Encoder.new(func(v:Variant, buf:StreamPeerBuffer):source.encode(mapper.call(v), buf)),
 		source._decoder
 	)
+	codec._smap_f = mapper
+	return codec
 
 
 ## Converts the result(Decoded) into another type and converts it back before encoding[br]eg: [code]Codec.INT.xmap(func(result): return str(result), func(value): return int(value))[/code][br]would result in a string represented by an uint32
@@ -537,6 +780,8 @@ func xmap(to:Callable, from:Callable) -> Codec:
 				return to.call(source.decode(buf))
 				)
 	)
+	codec._smap_f = from
+	codec._rmap_f = to
 	codec._is_record = source._is_record
 	codec._wire_encoder = source._wire_encoder
 	return codec
@@ -564,6 +809,10 @@ func _decode_length(buf:StreamPeerBuffer) -> int:
 		_:assert(false, "Length encoding was not valid: " + str(self._length_encoding))
 	return 0
 
+const __tostring_lh : String = "<Codec:"
+const __tostring_rh : String = ">"
+func _to_string() -> String:
+	return __tostring_lh + get_name() + __tostring_rh
 
 func _encode_length(buf:StreamPeerBuffer, length:int):
 	match(self._length_encoding):
@@ -580,7 +829,34 @@ func _encode_length(buf:StreamPeerBuffer, length:int):
 			assert(length <= INT64_MAX, "Length encoding exceeded bounds: " + str(INT64_MAX))
 			buf.put_u64(length)
 		_:assert(false, "Length encoding was not valid: " + str(self._length_encoding))
-
+## Which field format to prefer
+## [br] Method: Will attempt to use the method name using instance.call(field)
+## [br] Field: Will attempt to use the field name using instance.get(field)
+enum FieldType {
+	Method, Field
+}
+func field(field:Variant, type:FieldType=FieldType.Field) -> CodecBiRef:
+	var biref : CodecBiRef = CodecBiRef.new()
+	assert(field is Callable or field is StringName or field is String, "Codec.field must be either a StringName or a Callable getter!")
+	if field is Callable:
+		assert(field.get_argument_count() == 0, "Getter field for Codec.field cannot have arguments! It must be a getter!")
+		biref.ref_type = CodecBiRef.RefType.GETTER_NAME
+		biref.field_getter = field
+		biref.field_name = field.get_method()
+		biref.field_type = type
+	elif field is StringName or field is String:
+		biref.ref_type = CodecBiRef.RefType.NAME
+		biref.field_name = field as StringName
+		biref.field_type = type
+	return biref
+class CodecBiRef extends RefCounted:
+	var field_name : StringName
+	var field_getter : Callable
+	var ref_type : RefType
+	var field_type : FieldType
+	enum RefType{
+		NAME, GETTER, GETTER_NAME
+	}
 class Encoder:
 	var _efunc : Callable
 	func _init(efunc:Callable) -> void:

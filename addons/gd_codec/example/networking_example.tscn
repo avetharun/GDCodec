@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://cr02qurlu3gw5"]
+
+[ext_resource type="Script" uid="uid://c62ik7nnhs1n0" path="res://addons/gd_codec/example/networking_example.gd" id="1_jg2fu"]
+
+[node name="Networking Example" type="Node2D" unique_id=9016319 node_paths=PackedStringArray("status_label", "role_buttons", "host_button", "client_button", "echo_button", "rpc_button")]
+script = ExtResource("1_jg2fu")
+status_label = NodePath("CanvasLayer/MarginContainer/VBoxContainer/VBoxContainer/Status")
+role_buttons = NodePath("CanvasLayer/MarginContainer/VBoxContainer/RoleButtons")
+host_button = NodePath("CanvasLayer/MarginContainer/VBoxContainer/RoleButtons/HostButton")
+client_button = NodePath("CanvasLayer/MarginContainer/VBoxContainer/RoleButtons/ClientButton")
+echo_button = NodePath("CanvasLayer/MarginContainer/VBoxContainer/HBoxContainer/EchoButton")
+rpc_button = NodePath("CanvasLayer/MarginContainer/VBoxContainer/HBoxContainer/RpcButton")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=226608506]
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer" unique_id=1875123847]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MarginContainer" unique_id=191565119]
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/separation = 32
+
+[node name="RoleButtons" type="HBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer" unique_id=781265503]
+layout_mode = 2
+
+[node name="HostButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/RoleButtons" unique_id=1261115334]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Host"
+
+[node name="ClientButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/RoleButtons" unique_id=637798575]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Client"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer" unique_id=1167194347]
+layout_mode = 2
+
+[node name="EchoButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/HBoxContainer" unique_id=1716375619]
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "PacketCodec Echo"
+
+[node name="RpcButton" type="Button" parent="CanvasLayer/MarginContainer/VBoxContainer/HBoxContainer" unique_id=204216845]
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "Godot RPC Echo"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MarginContainer/VBoxContainer" unique_id=607490944]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CanvasLayer/MarginContainer/VBoxContainer/VBoxContainer" unique_id=1432181732]
+custom_minimum_size = Vector2(720, 32)
+custom_maximum_size = Vector2(720, -1)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Status / Response:"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Status" type="Label" parent="CanvasLayer/MarginContainer/VBoxContainer/VBoxContainer" unique_id=545733923]
+custom_minimum_size = Vector2(720, 32)
+custom_maximum_size = Vector2(720, -1)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Choose Host or Client to begin."
+horizontal_alignment = 1
+autowrap_mode = 3

@@ -3,20 +3,10 @@ extends EditorPlugin
 
 
 func _enable_plugin() -> void:
-	# Add autoloads here.
+	add_autoload_singleton("Packets", (get_script() as Script).resource_path.get_base_dir() + "/packets.gd")
 	pass
 
 
 func _disable_plugin() -> void:
-	# Remove autoloads here.
-	pass
-
-
-func _enter_tree() -> void:
-	# Initialization of the plugin goes here.
-	pass
-
-
-func _exit_tree() -> void:
-	# Clean-up of the plugin goes here.
+	remove_autoload_singleton("Packets")
 	pass
