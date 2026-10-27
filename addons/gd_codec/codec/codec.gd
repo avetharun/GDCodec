@@ -652,6 +652,7 @@ func get_rmap() -> Callable:
 ## function, or the mapper in [code]smap[/code]
 func get_smap() -> Callable:
 	return _smap_f
+<<<<<<< HEAD
 
 
 ## Creates a codec that maps field codecs to and from instances of [param c_type].
@@ -756,6 +757,8 @@ func _script_inherits_from(cs:Script, ts:Script) -> bool:
 			return true
 		current = current.get_base_script()
 	return false
+=======
+>>>>>>> d95b79bcbaf60222800c911d8611859794dc2671
 
 
 ## Converts the source(Encoded) into another type[br]eg: [Code]Codec.INT.map(func(source): return int(result))[/code][br] would result in the inputs being casted as an uint32 
