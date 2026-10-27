@@ -652,19 +652,19 @@ func get_rmap() -> Callable:
 ## function, or the mapper in [code]smap[/code]
 func get_smap() -> Callable:
 	return _smap_f
-<<<<<<< HEAD
 
 
 ## Creates a codec that maps field codecs to and from instances of [param c_type].
 ## Params require pairs of Codec and a raw [StringName] or [CodecBiRef] in the following format:
 ## [CODEC_TYPE, &"field_name", ...]
 ## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.
-static func bicast(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = Callable()) -> Codec:
+## Native classes require an explicit constructor callable in [param c_ctor].
+static func bicast(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
 	var c : Codec = Codec.new()
 	return c._bicast_map(bi_pairs, c_type, c_ctor)
 
 
-func _bicast_map(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = Callable()) -> Codec:
+func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
 	assert(bi_pairs.size() % 2 == 0, "Missing field name for Codec.")
 	var field_codecs : Array[Codec] = []
 	var field_accessors : Array[Callable] = []
@@ -674,21 +674,25 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = C
 		field_codecs.append(bi_pairs[i] as Codec)
 		field_accessors.append(_bicast_field_accessor(bi_pairs[i + 1]))
 
+	var script_type:bool = c_type is Script
+	assert(script_type or not c_ctor.is_null(), "A constructor must be provided when c_type is not a Script.")
 	var ctor : Callable = c_type.new if c_ctor.is_null() else c_ctor
 	var ctor_name : StringName = &"_init" if c_ctor.is_null() else c_ctor.get_method()
 	var ctor_arg_count:int = -1
-	for method:Dictionary in c_type.get_script_method_list():
-		if method.name == ctor_name:
-			ctor_arg_count = method.args.size()
-			break
+	if script_type:
+		for method:Dictionary in c_type.get_script_method_list():
+			if method.name == ctor_name:
+				ctor_arg_count = method.args.size()
+				break
 	if ctor_arg_count == -1:
-		ctor_arg_count = c_ctor.get_argument_count()
-		if c_ctor == c_type.new:
+		ctor_arg_count = ctor.get_argument_count()
+		if script_type and ctor == c_type.new:
 			push_error("Cannot use bicast on constructor [new] when there are custom arguments!")
-	assert(ctor_arg_count == field_codecs.size(), "%s %s must have exactly as many arguments as the mapping! Expected: %d, found: %d" % [c_type.get_global_name(), ctor_name, field_codecs.size(), ctor_arg_count])
+	var type_name:String = c_type.get_global_name() if script_type else str(c_type)
+	assert(ctor_arg_count == field_codecs.size(), "%s %s must have exactly as many arguments as the mapping! Expected: %d, found: %d" % [type_name, ctor_name, field_codecs.size(), ctor_arg_count])
 
 	self._smap_f = func(v:Variant) -> Array[Variant]:
-		assert(v is Object and _script_inherits_from(v.get_script(), c_type), "Value must be an instance of %s." % c_type.get_global_name())
+		assert(_bicast_instance_matches(v, c_type), "Value must be an instance of %s." % type_name)
 		var values:Array[Variant] = []
 		for i in range(field_codecs.size()):
 			values.append(field_accessors[i].call(v))
@@ -697,7 +701,7 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = C
 	self._rmap_f = func(values:Array[Variant]) -> Variant:
 		assert(values.size() == field_codecs.size())
 		var value:Variant = ctor.callv(values)
-		assert(value is Object and _script_inherits_from(value.get_script(), c_type), "Constructor must return an instance of %s." % c_type.get_global_name())
+		assert(_bicast_instance_matches(value, c_type), "Constructor must return an instance of %s." % type_name)
 		return value
 
 	var encode_fields := func(v:Variant, buf:StreamPeerBuffer, wire:bool = false) -> void:
@@ -721,6 +725,14 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Script, c_ctor : Callable = C
 		return self._rmap_f.call(values)
 	)
 	return self
+
+
+func _bicast_instance_matches(value:Variant, c_type:Variant) -> bool:
+	if not value is Object:
+		return false
+	if c_type is Script:
+		return _script_inherits_from(value.get_script(), c_type)
+	return is_instance_of(value, c_type)
 
 
 func _bicast_field_accessor(field_ref:Variant) -> Callable:
@@ -757,8 +769,6 @@ func _script_inherits_from(cs:Script, ts:Script) -> bool:
 			return true
 		current = current.get_base_script()
 	return false
-=======
->>>>>>> d95b79bcbaf60222800c911d8611859794dc2671
 
 
 ## Converts the source(Encoded) into another type[br]eg: [Code]Codec.INT.map(func(source): return int(result))[/code][br] would result in the inputs being casted as an uint32 
