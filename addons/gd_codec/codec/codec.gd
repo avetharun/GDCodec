@@ -84,6 +84,11 @@ static var STRING_NAME: Codec = STRING.xmap(
 		func(source: String) -> StringName: return StringName(source),
 		func(destination: StringName) -> String: return String(destination)
 ).set_name("StringName")
+## Variant of [member Codec.STRING] that will convert into a NodePath automatically
+static var NODE_PATH: Codec = STRING.xmap(
+		func(source: String) -> NodePath: return NodePath(source),
+		func(destination: NodePath) -> String: return String(destination)
+).set_name("NodePath")
 ## Array of Longs (64-bit unsigned)
 static var LONG_ARRAY : Codec = arrayof(LONG).set_name("U64Array")
 ## Array of Ints (32-bit unsigned)
@@ -116,7 +121,7 @@ static var COLOR_HDR_ARRAY : Codec = arrayof(COLOR).set_name("ColorHDRArray")
 static var PACKED_BYTE_ARRAY : Codec = BYTE_ARRAY.xmap(
 	func(source: PackedByteArray) -> PackedByteArray: return source,
 	func(destination: PackedByteArray) -> PackedByteArray: return destination
-)
+).set_name("PackedByteArray")
 ## Array of Colors (RGBA8, mapped to [PackedColorArray])
 static var PACKED_COLOR_ARRAY : Codec = COLOR_ARRAY.xmap(
 	func(source: Array[Variant]) -> PackedColorArray: return PackedColorArray(source),
@@ -124,7 +129,7 @@ static var PACKED_COLOR_ARRAY : Codec = COLOR_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedColorArray")
 ## Array of Colors (RGBA01, HDR format, mapped to [PackedColorArray])
 static var PACKED_COLOR_HDR_ARRAY : Codec = COLOR_HDR_ARRAY.xmap(
 	func(source: Array[Variant]) -> PackedColorArray: return PackedColorArray(source),
@@ -132,7 +137,7 @@ static var PACKED_COLOR_HDR_ARRAY : Codec = COLOR_HDR_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedColorHDRArray")
 ## Array of Floats (mapped to [PackedFloat32Array])
 static var PACKED_FLOAT32_ARRAY : Codec = FLOAT_ARRAY.xmap(
 	func(source: Array[Variant]) -> PackedFloat32Array: return PackedFloat32Array(source),
@@ -140,7 +145,7 @@ static var PACKED_FLOAT32_ARRAY : Codec = FLOAT_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedFloat32Array")
 ## Array of Floats (mapped to [PackedFloat32Array])
 static var PACKED_FLOAT_ARRAY : Codec = PACKED_FLOAT32_ARRAY
 
@@ -151,7 +156,7 @@ static var PACKED_FLOAT64_ARRAY : Codec = DOUBLE_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedFloat64Array")
 ## Array of Doubles (mapped to [PackedFloat64Array])
 static var PACKED_DOUBLE_ARRAY : Codec = PACKED_FLOAT64_ARRAY
 ## Array of Ints (mapped to [PackedInt32Array])
@@ -161,7 +166,7 @@ static var PACKED_INT32_ARRAY : Codec = SIGNED_INT_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedInt32Array")
 ## Array of Longs (mapped to [PackedInt64Array])
 static var PACKED_INT64_ARRAY : Codec = SIGNED_LONG_ARRAY.xmap(
 	func(source: Array[Variant]) -> PackedInt64Array: return PackedInt64Array(source),
@@ -169,7 +174,7 @@ static var PACKED_INT64_ARRAY : Codec = SIGNED_LONG_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedInt64Array")
 ## Array of Strings (mapped to [PackedStringArray])
 static var PACKED_STRING_ARRAY : Codec = STRING_ARRAY.xmap(
 	func(source: Array[Variant]) -> PackedStringArray: return PackedStringArray(source),
@@ -177,7 +182,7 @@ static var PACKED_STRING_ARRAY : Codec = STRING_ARRAY.xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedStringArray")
 ## Array of Vector2 (mapped to [PackedVector2Array])
 static var PACKED_VECTOR2_ARRAY : Codec = arrayof(VECTOR2).xmap(
 	func(source: Array[Variant]) -> PackedVector2Array: return PackedVector2Array(source),
@@ -185,7 +190,7 @@ static var PACKED_VECTOR2_ARRAY : Codec = arrayof(VECTOR2).xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedVectoor2Array")
 ## Array of Vector3 (mapped to [PackedVector3Array])
 static var PACKED_VECTOR3_ARRAY : Codec = arrayof(VECTOR3).xmap(
 	func(source: Array[Variant]) -> PackedVector3Array: return PackedVector3Array(source),
@@ -193,7 +198,7 @@ static var PACKED_VECTOR3_ARRAY : Codec = arrayof(VECTOR3).xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedVector3Array")
 ## Array of Vector4 (mapped to [PackedVector4Array])
 static var PACKED_VECTOR4_ARRAY : Codec = arrayof(VECTOR4).xmap(
 	func(source: Array[Variant]) -> PackedVector4Array: return PackedVector4Array(source),
@@ -201,7 +206,7 @@ static var PACKED_VECTOR4_ARRAY : Codec = arrayof(VECTOR4).xmap(
 		var values: Array[Variant] = []
 		values.assign(destination)
 		return values
-)
+).set_name("PackedVector4Array")
 
 ## Color (RGBA8, Int32 encoded)
 static var COLOR : Codec = Codec.INT.xmap(
@@ -288,6 +293,107 @@ static var BITMASK_8 : Codec = Codec.new(
 			return flags
 			)
 ).set_name("Bitmask8")
+
+static var PLANE : Codec = Codec.new(
+	Encoder.new(func(v:Plane, buf:StreamPeerBuffer):
+		buf.put_float(v.normal.x)
+		buf.put_float(v.normal.y)
+		buf.put_float(v.normal.z)
+		buf.put_float(v.d)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> Plane:
+		return Plane(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float())
+		)
+).set_name("Plane")
+static var RECT2 : Codec = Codec.new(
+	Encoder.new(func(v:Rect2, buf:StreamPeerBuffer):
+		buf.put_float(v.position.x)
+		buf.put_float(v.position.y)
+		buf.put_float(v.size.x)
+		buf.put_float(v.size.y)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> Rect2:
+		return Rect2(buf.get_float(), buf.get_float(), buf.get_float(), buf.get_float())
+		)
+).set_name("Rect2")
+static var RECT2I : Codec = Codec.new(
+	Encoder.new(func(v:Rect2i, buf:StreamPeerBuffer):
+		buf.put_32(v.position.x)
+		buf.put_32(v.position.y)
+		buf.put_32(v.size.x)
+		buf.put_32(v.size.y)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> Rect2i:
+		return Rect2i(buf.get_32(), buf.get_32(), buf.get_32(), buf.get_32())
+		)
+).set_name("Rect2i")
+static var TRANSFORM2D : Codec = Codec.new(
+	Encoder.new(func(v:Transform2D, buf:StreamPeerBuffer):
+		buf.put_32(v.x.x)
+		buf.put_32(v.x.y)
+		buf.put_32(v.y.x)
+		buf.put_32(v.y.y)
+		buf.put_32(v.origin.x)
+		buf.put_32(v.origin.y)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> Transform2D:
+		return Transform2D(
+			Vector2(buf.get_32(), buf.get_32()),
+			Vector2(buf.get_32(), buf.get_32()),
+			Vector2(buf.get_32(), buf.get_32())
+			)
+		)
+).set_name("Transform2D")
+## Named such to not conflict with [AABB]
+static var AABB_CODEC : Codec = Codec.new(
+	Encoder.new(func(v:AABB, buf:StreamPeerBuffer):
+		buf.put_float(v.position.x)
+		buf.put_float(v.position.y)
+		buf.put_float(v.position.z)
+		buf.put_float(v.size.x)
+		buf.put_float(v.size.y)
+		buf.put_float(v.size.z)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> AABB:
+		return AABB(Vector3(buf.get_float(), buf.get_float(), buf.get_float()), Vector3(buf.get_float(), buf.get_float(), buf.get_float()))
+		)
+).set_name("AABB")
+static var BASIS : Codec = Codec.new(
+	Encoder.new(func(v:Basis, buf:StreamPeerBuffer):
+		buf.put_float(v.x.x)
+		buf.put_float(v.x.y)
+		buf.put_float(v.x.z)
+		buf.put_float(v.y.x)
+		buf.put_float(v.y.y)
+		buf.put_float(v.y.z)
+		buf.put_float(v.z.x)
+		buf.put_float(v.z.y)
+		buf.put_float(v.z.z)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> Basis:
+		return Basis(Vector3(buf.get_float(), buf.get_float(), buf.get_float()), Vector3(buf.get_float(), buf.get_float(), buf.get_float()), Vector3(buf.get_float(), buf.get_float(), buf.get_float()))
+		)
+).set_name("Basis")
+
+static var TRANSFORM3D : Codec = Codec.new(
+	Encoder.new(func(v:Transform3D, buf:StreamPeerBuffer):
+		buf.put_float(v.basis.x.x)
+		buf.put_float(v.basis.x.y)
+		buf.put_float(v.basis.x.z)
+		buf.put_float(v.basis.y.x)
+		buf.put_float(v.basis.y.y)
+		buf.put_float(v.basis.y.z)
+		buf.put_float(v.basis.z.x)
+		buf.put_float(v.basis.z.y)
+		buf.put_float(v.basis.z.z)
+		buf.put_float(v.origin.x)
+		buf.put_float(v.origin.y)
+		buf.put_float(v.origin.z)
+		),
+	Decoder.new(func(buf:StreamPeerBuffer) -> Transform3D:
+		return Transform3D(Basis(Vector3(buf.get_float(), buf.get_float(), buf.get_float()), Vector3(buf.get_float(), buf.get_float(), buf.get_float()), Vector3(buf.get_float(), buf.get_float(), buf.get_float())), Vector3(buf.get_float(), buf.get_float(), buf.get_float()))
+		)
+).set_name("Transform3D")
 
 
 ## Constant-width codec of an element type. [br]
@@ -648,8 +754,9 @@ func get_smap() -> Callable:
 ## Native classes require an explicit constructor callable in [param c_ctor].[br]
 ## JSON serialization uses field names from [CodecBiRef.json_name].
 static func bicast(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
-	var c : Codec = Codec.new()
-	return c._bicast_map(bi_pairs, c_type, c_ctor)
+	return null
+	#var c : Codec = Codec.new()
+	#return c._bicast_map(bi_pairs, c_type, c_ctor)
 
 
 func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
