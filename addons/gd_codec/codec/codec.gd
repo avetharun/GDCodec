@@ -11,6 +11,8 @@ var _is_record:bool = false
 var _length_encoding : LengthEncoding = LengthEncoding.INT32
 var _rmap_f : Callable = Callable()
 var _smap_f : Callable = Callable()
+var _json_smap_f : Callable = Callable()
+var _json_wire_encoder : Encoder
 var _cd_name : StringName = _UNNAMED_CODEC
 const _UNNAMED_CODEC : StringName = "Unnamed"
 ## Enum (64-bit unsigned)
@@ -482,6 +484,15 @@ static func arrayof(codec:Codec) -> Codec:
 			for value in v:
 				codec._encode_wire(value, buf)
 			))
+	array_codec._json_smap_f = func(v:Array) -> Array:
+		var values:Array = []
+		for value in v:
+			if not codec._json_smap_f.is_null():
+				values.append(codec._json_smap_f.call(value))
+			else:
+				var smap:Callable = codec.get_smap()
+				values.append(smap.call(value) if not smap.is_null() else value)
+		return values
 	return array_codec
 
 
@@ -524,19 +535,24 @@ static func mapof(key_codec:Codec, value_codec:Codec) -> Codec:
 	return _r_codec
 
 
-## Creates a record codec that encodes fields in the dictionary's declaration order.[br]This can be used to serialize from and to class objects, similarly to var_to_bytes
-static func record(fields:Dictionary) -> Codec:
+## Creates a record codec that encodes fields in the dictionary's declaration order.[br]This can be used to serialize from and to class objects, similarly to var_to_bytes.
+## If [param encode_key] is true, each field name is encoded as a length-prefixed string immediately before its value.
+static func record(fields:Dictionary, encode_key:bool = false) -> Codec:
 	var field_names:Array = fields.keys()
 	var codec : Codec = Codec.new(
 		Encoder.new(func(v:Dictionary, buf:StreamPeerBuffer):
 				for field_name in field_names:
 					var field_codec:Codec = fields[field_name]
+					if encode_key:
+						STRING.encode(str(field_name), buf)
 					field_codec.encode(v.get(field_name), buf)
 				),
 		Decoder.new(func(buf:StreamPeerBuffer):
 				var value:Dictionary = {}
 				for field_name in field_names:
 					var field_codec:Codec = fields[field_name]
+					if encode_key:
+						assert(STRING.decode(buf) == str(field_name), "Record key did not match expected field %s." % field_name)
 					value[field_name] = field_codec.decode(buf)
 				return value
 				)
@@ -545,8 +561,21 @@ static func record(fields:Dictionary) -> Codec:
 	codec._wire_encoder = Encoder.new(func(v:Dictionary, buf:StreamPeerBuffer):
 			for field_name in field_names:
 				var field_codec:Codec = fields[field_name]
+				if encode_key:
+					STRING.encode(str(field_name), buf)
 				field_codec._encode_wire(v.get(field_name), buf)
 			)
+	codec._json_smap_f = func(v:Dictionary) -> Dictionary:
+		var values:Dictionary = {}
+		for field_name in field_names:
+			var field_codec:Codec = fields[field_name]
+			var field_value:Variant = v.get(field_name)
+			if not field_codec._json_smap_f.is_null():
+				values[field_name] = field_codec._json_smap_f.call(field_value)
+			else:
+				var smap:Callable = field_codec.get_smap()
+				values[field_name] = smap.call(field_value) if not smap.is_null() else field_value
+		return values
 	return codec
 
 
@@ -659,6 +688,7 @@ func get_smap() -> Callable:
 ## [CODEC_TYPE, &"field_name", ...]
 ## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.
 ## Native classes require an explicit constructor callable in [param c_ctor].
+## JSON serialization uses field names from [CodecBiRef.json_name].
 static func bicast(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
 	var c : Codec = Codec.new()
 	return c._bicast_map(bi_pairs, c_type, c_ctor)
@@ -668,11 +698,20 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = 
 	assert(bi_pairs.size() % 2 == 0, "Missing field name for Codec.")
 	var field_codecs : Array[Codec] = []
 	var field_accessors : Array[Callable] = []
+	var json_names:Array[StringName] = []
 	for i in range(0, bi_pairs.size(), 2):
 		assert(bi_pairs[i] is Codec, "Expected a Codec at index %d." % i)
 		assert(bi_pairs[i + 1] is StringName or bi_pairs[i + 1] is CodecBiRef, "Expected a StringName or CodecBiRef at index %d." % (i + 1))
 		field_codecs.append(bi_pairs[i] as Codec)
 		field_accessors.append(_bicast_field_accessor(bi_pairs[i + 1]))
+		var json_name:StringName
+		if bi_pairs[i + 1] is CodecBiRef:
+			json_name = (bi_pairs[i + 1] as CodecBiRef).json_name
+		else:
+			json_name = bi_pairs[i + 1] as StringName
+		assert(not json_name.is_empty(), "Bicast fields need a JSON name; use Codec.field with a name or an inferable field/method name.")
+		assert(not json_names.has(json_name), "Duplicate bicast JSON field name: %s." % json_name)
+		json_names.append(json_name)
 
 	var script_type:bool = c_type is Script
 	assert(script_type or not c_ctor.is_null(), "A constructor must be provided when c_type is not a Script.")
@@ -698,6 +737,13 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = 
 			values.append(field_accessors[i].call(v))
 		return values
 
+	self._json_smap_f = func(v:Variant) -> Dictionary:
+		var values:Array[Variant] = self._smap_f.call(v)
+		var json_fields:Dictionary = {}
+		for i in range(json_names.size()):
+			json_fields[String(json_names[i])] = values[i]
+		return json_fields
+
 	self._rmap_f = func(values:Array[Variant]) -> Variant:
 		assert(values.size() == field_codecs.size())
 		var value:Variant = ctor.callv(values)
@@ -717,6 +763,11 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = 
 	)
 	self._wire_encoder = Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
 		encode_fields.call(v, buf, true)
+	)
+	self._is_record = true
+	self._json_wire_encoder = Encoder.new(func(v:Dictionary, buf:StreamPeerBuffer):
+		for i in range(field_codecs.size()):
+			field_codecs[i]._encode_wire(v.get(String(json_names[i])), buf)
 	)
 	self._decoder = Decoder.new(func(buf:StreamPeerBuffer) -> Variant:
 		var values:Array[Variant] = []
@@ -779,6 +830,11 @@ func smap(mapper:Callable) -> Codec:
 		source._decoder
 	)
 	codec._smap_f = mapper
+	codec._json_smap_f = func(v:Variant) -> Variant:
+		var mapped:Variant = mapper.call(v)
+		if not source._json_smap_f.is_null():
+			return source._json_smap_f.call(mapped)
+		return mapped
 	return codec
 
 
@@ -797,6 +853,12 @@ func xmap(to:Callable, from:Callable) -> Codec:
 	codec._rmap_f = to
 	codec._is_record = source._is_record
 	codec._wire_encoder = source._wire_encoder
+	codec._json_wire_encoder = source._json_wire_encoder
+	codec._json_smap_f = func(v:Variant) -> Variant:
+		var mapped:Variant = from.call(v)
+		if not source._json_smap_f.is_null():
+			return source._json_smap_f.call(mapped)
+		return mapped
 	return codec
 
 ## Sets the size of an encoded "length-prefixed" element in bits. [br]
@@ -848,22 +910,42 @@ func _encode_length(buf:StreamPeerBuffer, length:int):
 enum FieldType {
 	Method, Field
 }
-func field(field:Variant, type:FieldType=FieldType.Field) -> CodecBiRef:
+## Creates a field reference for [method Codec.bicast]. If [param name] is empty,
+## the JSON name is inferred from [param field]; method names beginning with
+## [code]get_[/code], [code]has_[/code], or [code]is_[/code] have that prefix removed.
+static func field(field:Variant, type:FieldType=FieldType.Field, name : String = String()) -> CodecBiRef:
 	var biref : CodecBiRef = CodecBiRef.new()
 	assert(field is Callable or field is StringName or field is String, "Codec.field must be either a StringName or a Callable getter!")
+	var field_name:StringName
 	if field is Callable:
 		assert(field.get_argument_count() == 0, "Getter field for Codec.field cannot have arguments! It must be a getter!")
 		biref.ref_type = CodecBiRef.RefType.GETTER_NAME
 		biref.field_getter = field
 		biref.field_name = field.get_method()
 		biref.field_type = type
+		field_name = biref.field_name
 	elif field is StringName or field is String:
 		biref.ref_type = CodecBiRef.RefType.NAME
 		biref.field_name = field as StringName
 		biref.field_type = type
+		field_name = biref.field_name
+	biref.json_name = StringName(name) if not name.is_empty() else _json_name_from_field(field_name, field is Callable or type == FieldType.Method)
 	return biref
+
+
+static func _json_name_from_field(field_name:StringName, is_method:bool) -> StringName:
+	var name:String = String(field_name)
+	if is_method:
+		for prefix:String in ["get_", "has_", "is_"]:
+			if name.begins_with(prefix) and name.length() > prefix.length():
+				name = name.substr(prefix.length())
+				break
+	return StringName(name)
+
+
 class CodecBiRef extends RefCounted:
 	var field_name : StringName
+	var json_name : StringName
 	var field_getter : Callable
 	var ref_type : RefType
 	var field_type : FieldType

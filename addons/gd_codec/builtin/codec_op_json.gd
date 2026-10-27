@@ -4,6 +4,12 @@ class_name CodecOpJson extends CodecOps
 func encode_buffer(codec:Codec, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	assert(codec._is_record)
 	var value : Variant = codec.decode(buf)
+	if not codec._json_smap_f.is_null():
+		value = codec._json_smap_f.call(value)
+	else:
+		var smap:Callable = codec.get_smap()
+		if not smap.is_null():
+			value = smap.call(value)
 	var b = StreamPeerBuffer.new()
 	b.put_data(JSON.stringify(value).to_utf8_buffer())
 	return b
@@ -15,7 +21,10 @@ func decode_buffer(codec:Codec, buf:StreamPeerBuffer) -> Variant:
 	var error : Error = parser.parse(buf.data_array.get_string_from_utf8())
 	assert(error == OK)
 	var binary : StreamPeerBuffer = StreamPeerBuffer.new()
-	codec._encode_wire(parser.data, binary)
+	if codec._json_wire_encoder != null:
+		codec._json_wire_encoder.encode(parser.data, binary)
+	else:
+		codec._encode_wire(parser.data, binary)
 	binary.seek(0)
 	return codec.decode(binary)
 
