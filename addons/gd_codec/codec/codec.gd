@@ -754,9 +754,8 @@ func get_smap() -> Callable:
 ## Native classes require an explicit constructor callable in [param c_ctor].[br]
 ## JSON serialization uses field names from [CodecBiRef.json_name].
 static func bicast(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
-	return null
-	#var c : Codec = Codec.new()
-	#return c._bicast_map(bi_pairs, c_type, c_ctor)
+	var c : Codec = Codec.new()
+	return c._bicast_map(bi_pairs, c_type, c_ctor)
 
 
 func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
