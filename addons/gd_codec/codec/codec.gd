@@ -14,6 +14,7 @@ var _smap_f : Callable = Callable()
 var _json_smap_f : Callable = Callable()
 var _json_wire_encoder : Encoder
 var _cd_name : StringName = _UNNAMED_CODEC
+var _bicast_mapping : BicastMapping = null
 const _UNNAMED_CODEC : StringName = "Unnamed"
 ## Enum (64-bit unsigned)
 ## [br] [b]Warning:[/b] make sure to validate the output of this!
@@ -753,12 +754,25 @@ func get_smap() -> Callable:
 ## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.[br]
 ## Native classes require an explicit constructor callable in [param c_ctor].[br]
 ## JSON serialization uses field names from [CodecBiRef.json_name].
-static func bicast(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
+static func bicast(format : Variant, c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
 	var c : Codec = Codec.new()
-	return c._bicast_map(bi_pairs, c_type, c_ctor)
+	assert(format is Array[Variant] or format is BicastMapping, "The format used in bicast must either be an array of elements or a result from Codec.bicast_inheritable!")
+	return c._bicast_map(format, c_type, c_ctor)
 
 
-func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
+func _bicast_map(format : Variant, c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
+	assert(format is Array[Variant] or format is BicastMapping, "The format used in bicast must either be an array of elements or a result from Codec.bicast_inheritable!")
+	#region bicast array format
+	var bi_pairs : Array[Variant] = []
+	if format is Array[Variant]:
+		bi_pairs = format
+		self._bicast_mapping = BicastMapping.new()
+		self._bicast_mapping.refs = format
+	elif format is BicastMapping:
+		bi_pairs = format.refs
+		self._bicast_mapping = format
+	else:
+		assert(false, "Cannot use bicast, mapping or array was missing.")
 	assert(bi_pairs.size() % 2 == 0, "Missing field name for Codec.")
 	var field_codecs : Array[Codec] = []
 	var field_accessors : Array[Callable] = []
@@ -839,6 +853,7 @@ func _bicast_map(bi_pairs : Array[Variant], c_type:Variant, c_ctor : Callable = 
 			values.append(codec.decode(buf))
 		return self._rmap_f.call(values)
 	)
+	#endregion
 	return self
 
 
@@ -880,6 +895,18 @@ func xmap(to:Callable, from:Callable) -> Codec:
 			return source._json_smap_f.call(mapped)
 		return mapped
 	return codec
+
+## Returns the result of [method Codec.bicast] for use in extending classes
+func get_bicast() -> BicastMapping:
+	if _bicast_mapping == null:
+		push_warning("Bicast mapping is null! An empty reference will be returned instead.")
+	return _bicast_mapping if _bicast_mapping != null else BicastMapping.new()
+
+## Creates an extendable mapping for use in [method Codec.bicast]
+static func create_bicast_mapping(refs:Array[Variant]) -> BicastMapping:
+	var result := BicastMapping.new()
+	result.refs = refs
+	return result
 
 
 ## Creates a field reference for [method Codec.bicast]. If [param name] is empty,
@@ -1055,6 +1082,29 @@ static func _json_name_from_field(field_name:StringName, is_method:bool) -> Stri
 				break
 	return StringName(name)
 
+class BicastMapping extends RefCounted:
+	var refs : Array[Variant] = []
+	func prepend(other:Array[Variant]):
+		var m := BicastMapping.new()
+		var a = other.duplicate()
+		a.append_array(refs)
+		m.refs = a
+		return m
+	func extend(other:Array[Variant]):
+		var m := BicastMapping.new()
+		m.refs = refs.duplicate()
+		m.refs.append_array(other)
+		return m
+	func append(other:Array[Variant]):
+		var m := BicastMapping.new()
+		m.refs = refs.duplicate()
+		m.refs.append_array(other)
+		return m
+	func with(other:BicastMapping)->BicastMapping:
+		var m := BicastMapping.new()
+		m.refs = refs.duplicate()
+		m.refs.append_array(other.refs)
+		return m
 
 class CodecBiRef extends RefCounted:
 	var field_name : StringName

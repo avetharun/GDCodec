@@ -1,25 +1,5 @@
 extends Node
 
-
-static var item_bicast_codec : Codec = Codec.bicast([
-		Codec.STRING_NAME, Codec.field(&"get_item_id", Codec.FieldType.Method),
-		Codec.INT, Codec.field(&"count"),
-		Codec.INT, Codec.field(&"slot"),
-		Codec.optional(Codec.VARIANT, {}), Codec.field(&"data")
-		], Item)
-
-static var keyed_record_codec : Codec = Codec.record({
-		"count": Codec.INT,
-		"name": Codec.STRING
-		}, true)
-
-static var item_record_codec : Codec = Codec.record({
-		"item_id":Codec.STRING_NAME,
-		"count": Codec.INT,
-		"slot": Codec.INT,
-		"data": Codec.optional(Codec.VARIANT, {})
-		})
-
 ## Records are a codec type that can be stored as a dictionary.
 ## However, Codec.mapof(k_codec, v_codec) will create an unformatted
 ## Dictionary that will be of type Dictionary[KeyType, ValueType], assuming
@@ -35,6 +15,80 @@ static var item_codec : Codec = Codec.record({
 				func(value:Dictionary) -> Item: return Item.new(value["item_id"], value["count"], value["slot"], value["data"]),
 				func(item:Item) -> Dictionary: return {"item_id": item.item_id_test, "count": item.count, "slot": item.slot, "data": item.data}
 		)
+## Using the record format, inheritance requires you to duplicate the initial formatting.
+## In complex chains, this can become expensive. Try using [method Codec.create_bicast_mapping] or [method Codec.get_bicast]
+static var sword_item_codec : Codec = Codec.record({
+		"item_id":Codec.STRING_NAME,
+		"count": Codec.INT,
+		"slot": Codec.INT,
+		"data": Codec.optional(Codec.VARIANT, {}),
+		"damage": Codec.FLOAT,
+		}).xmap(
+				func(value:Dictionary) -> Item: return SwordItem.new(value["damage"], value["item_id"], value["count"], value["slot"], value["data"]),
+				func(item:SwordItem) -> Dictionary: return {"item_id": item.item_id_test, "count": item.count, "slot": item.slot, "data": item.data, "damage": item.damage}
+		)
+
+
+## The [method Codec.bicast] method is used for a more streamlined automation of mapping codecs directly to an object.
+## [br] It allows you to represent fields or getter functions as a mapping into a constructor.
+## [br] The constructor can either be a static method (use this for classes you do NOT control, ie Godot's classes)
+## or the .new constructor (_init). The new method will be default if unspecified.
+## [br] For Resource-based classes, use a static method instead of having an _init so Godot can still parse the Resource type.
+## [br] For more examples of this method, see [url=https://avetharun.github.io/docs/gdcodec/docs/codecs/#codec-examples-encoding-an-object-using-bicast]GDCodec's Documentation / Encoding an object using Bicast[/url]
+static var item_bicast_codec : Codec = Codec.bicast([
+		## In Neoforge, this would be formatted as Codec.STRING_NAME.fieldOf("item_id").forGetter(Item::get_item_id)
+		Codec.STRING_NAME, Codec.field(&"get_item_id", Codec.FieldType.Method, "item_id"),
+		Codec.INT, Codec.field(&"count"),
+		Codec.INT, Codec.field(&"slot"),
+		Codec.optional(Codec.VARIANT, {}), Codec.field(&"data")
+		], Item, Item.codec_new)
+## For extending an existing codec, it's recommended to use [method Codec.bicast] with [method Codec.get_bicast_mapping]
+## Two methods exist on [Codec.BicastMapping]. [method Codec.BicastMapping.prepend] which puts the "extend" as if you did the following:
+## [codeblock]
+## class A:
+##     func _init(something:bool):
+##        ...
+## class PrependB extends A:
+##     func _init(some_string:String, something:bool):
+##         super._init(something)
+##         ...
+## class ExtendB extends A:
+##     func _init(something:bool, some_string:String):
+##         super._init(something)
+##         ...
+## [/codeblock]
+## where you would use [method Codec.BicastMapping.prepend] for [code]PrependB[/code] and [method Codec.BicastMapping.extend] for [code]ExtendB[/code]
+static var sword_item_bicast_codec : Codec = Codec.bicast(
+	item_bicast_codec.get_bicast().prepend(
+		[
+			Codec.FLOAT, Codec.field(&"damage")
+		]
+	), SwordItem)
+## Identical to the first argument of the [method Codec.bicast] method.
+## Allows extending and inheritance
+static var item_bicast_mapping : Codec.BicastMapping = Codec.create_bicast_mapping([
+	Codec.STRING_NAME, Codec.field(&"get_item_id", Codec.FieldType.Method, "id"),
+	Codec.INT, Codec.field(&"count"),
+	Codec.INT, Codec.field(&"slot"),
+	Codec.optional(Codec.VARIANT, {}), Codec.field(&"data")
+])
+static var sword_item_bicast_mapping : Codec.BicastMapping = item_bicast_mapping.extend(
+	[
+		Codec.FLOAT, Codec.field(&"damage")
+	]
+)
+
+static var keyed_record_codec : Codec = Codec.record({
+		"count": Codec.INT,
+		"name": Codec.STRING
+		}, true)
+
+static var item_record_codec : Codec = Codec.record({
+		"item_id":Codec.STRING_NAME,
+		"count": Codec.INT,
+		"slot": Codec.INT,
+		"data": Codec.optional(Codec.VARIANT, {})
+		})
 
 static var inventory_codec : Codec = Codec.record({
 		"items": Codec.arrayof(item_codec),
@@ -68,15 +122,37 @@ static var bmp_test_codec : Codec = Codec.join([
 func _init() -> void:
 	var item1 := Item.new("a very cool sword", 1, 16)
 	var item2 := Item.new("a very cool shovel", 1, 14, {"damage": 7})
-	var bicast_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
-	item_bicast_codec.encode(item2, bicast_buffer)
-	bicast_buffer.seek(0)
-	var bicast_item:Item = item_bicast_codec.decode(bicast_buffer)
-	assert(bicast_item.item_id_test == item2.item_id_test, "Item bicast roundtrip changed item_id.")
-	assert(bicast_item.count == item2.count, "Item bicast roundtrip changed count.")
-	assert(bicast_item.slot == item2.slot, "Item bicast roundtrip changed slot.")
-	assert(bicast_item.data == item2.data, "Item bicast roundtrip changed data.")
-	print("Item (bicast roundtrip): " + str(bicast_item))
+	var item3 := SwordItem.new(4.0, "a very very cool sword!", 1, 8)
+	var i3_bicast_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	sword_item_bicast_codec.encode(item3, i3_bicast_buffer)
+	i3_bicast_buffer.seek(0)
+	var i3_bicast_item:SwordItem = sword_item_bicast_codec.decode(i3_bicast_buffer)
+	assert(i3_bicast_item.item_id_test == item3.item_id_test, "Item bicast roundtrip changed item_id.")
+	assert(i3_bicast_item.count == item3.count, "Item bicast roundtrip changed count.")
+	assert(i3_bicast_item.slot == item3.slot, "Item bicast roundtrip changed slot.")
+	assert(i3_bicast_item.data == item3.data, "Item bicast roundtrip changed data.")
+	print("Item (bicast roundtrip 3): " + str(i3_bicast_item))
+	
+	var i2_bicast_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	item_bicast_codec.encode(item2, i2_bicast_buffer)
+	i2_bicast_buffer.seek(0)
+	var i2_bicast_item:Item = item_bicast_codec.decode(i2_bicast_buffer)
+	assert(i2_bicast_item.item_id_test == item2.item_id_test, "Item bicast roundtrip changed item_id.")
+	assert(i2_bicast_item.count == item2.count, "Item bicast roundtrip changed count.")
+	assert(i2_bicast_item.slot == item2.slot, "Item bicast roundtrip changed slot.")
+	assert(i2_bicast_item.data == item2.data, "Item bicast roundtrip changed data.")
+	print("Item (bicast roundtrip 2): " + str(i2_bicast_item))
+	
+	var i1_bicast_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	item_bicast_codec.encode(item1, i1_bicast_buffer)
+	i1_bicast_buffer.seek(0)
+	var i1_bicast_item:Item = item_bicast_codec.decode(i1_bicast_buffer)
+	assert(i1_bicast_item.item_id_test == item1.item_id_test, "Item bicast roundtrip changed item_id. Expected %s found %s" % [item1.item_id_test, i1_bicast_item.item_id_test])
+	assert(i1_bicast_item.count == item1.count, "Item bicast roundtrip changed count.")
+	assert(i1_bicast_item.slot == item1.slot, "Item bicast roundtrip changed slot.")
+	assert(i1_bicast_item.data == item1.data, "Item bicast roundtrip changed data.")
+	print("Item (bicast roundtrip 1): " + str(i1_bicast_item))
+	
 	var bicast_json:StreamPeerBuffer = CodecOps.JSON_OPS.encode(item_bicast_codec, item2)
 	var bicast_json_value:Dictionary = JSON.parse_string(bicast_json.data_array.get_string_from_utf8())
 	assert(bicast_json_value["item_id"] == item2.item_id_test, "Bicast JSON used the wrong field name.")
@@ -139,13 +215,15 @@ func _init() -> void:
 	_bmp_buf.data_array = _bmp_data
 	print(CodecOps.BYTE_BUFFER_OPS.decode_buffer(bmp_test_codec, _bmp_buf) as BmpHeader)
 
-class Item:
+class Item extends RefCounted:
 	var item_id_test : StringName
 	var count : int
 	var slot : int
 	var data : Dictionary
 	func get_item_id() -> StringName:
 		return item_id_test
+	static func codec_new(p_item_id : StringName, p_count : int, p_slot : int, p_data : Dictionary = {}) -> Item:
+		return Item.new(p_item_id, p_count, p_slot, p_data)
 	func _init(p_item_id : StringName, p_count : int, p_slot : int, p_data : Dictionary = {}) -> void:
 		self.item_id_test = p_item_id
 		self.count = p_count
@@ -154,15 +232,20 @@ class Item:
 	func _to_string() -> String:
 		return item_id_test as String + "x" + str(count) + " at slot " + str(slot) + " with data "\
 				+ str(data)
-
-class Inventory:
+class SwordItem extends Item:
+	var damage : float
+	func _init(p_damage:float, p_item_id : StringName, p_count : int, p_slot : int, p_data : Dictionary = {}) -> void:
+		super._init(p_item_id, p_count, p_slot, p_data)
+	func _to_string() -> String:
+		return "SwordItem@"+super._to_string()
+class Inventory extends RefCounted:
 	var items : Array[Item] = []
 	func _init(p_items : Array[Item]) -> void:
 		self.items = p_items
 	func _to_string() -> String:
 		return "Inventory with items: " + str(items)
 
-class BmpHeader:
+class BmpHeader extends RefCounted:
 	var width:int
 	var height:int
 	func _init(p_width : int, p_height : int) -> void:
