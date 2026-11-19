@@ -7,7 +7,15 @@
 
 extends Node
 
-
+## The Codec.lazy method can be used to self-reference the codec that is being defined.
+## Note: does NOT need to have Codec.optional (or Codec.nullable) however for nesting chained objects,
+## such as the DialogRef in this example, it's reccomended.
+static var DIALOG_CODEC:Codec = Codec.bicast([
+	Codec.STRING_NAME, Codec.field(&"id", Codec.FieldType.Field, "dialog_id"),
+	Codec.STRING, Codec.field(&"title", Codec.FieldType.Field, "dialog_title"),
+	Codec.STRING, Codec.field(&"body", Codec.FieldType.Field, "dialog_body"),
+	Codec.optional(Codec.lazy(func() -> Codec: return DIALOG_CODEC), null), Codec.field(&"next", Codec.FieldType.Field, "next_dialog")
+], DialogRef, DialogRef._bicast_import)
 
 
 ## Records are a codec type that can be stored as a dictionary.
@@ -146,9 +154,9 @@ func _init() -> void:
 	var dialog_leaf := DialogRef.new(&"leaf", "Leaf", "End of dialog")
 	var dialog_root := DialogRef.new(&"root", "Root", "Start of dialog", dialog_leaf)
 	var dialog_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
-	DialogRef.CODEC.encode(dialog_root, dialog_buffer)
+	DIALOG_CODEC.encode(dialog_root, dialog_buffer)
 	dialog_buffer.seek(0)
-	var decoded_dialog:DialogRef = DialogRef.CODEC.decode(dialog_buffer)
+	var decoded_dialog:DialogRef = DIALOG_CODEC.decode(dialog_buffer)
 	assert(decoded_dialog.id == dialog_root.id, "Recursive bicast roundtrip changed the root id.")
 	assert(decoded_dialog.next.id == dialog_leaf.id, "Recursive bicast roundtrip changed the next dialog id.")
 	assert(decoded_dialog.next.next == null, "Recursive bicast roundtrip changed the terminal dialog.")
@@ -266,12 +274,6 @@ class Inventory extends RefCounted:
 		return "Inventory with items: " + str(items)
 
 class DialogRef extends RefCounted:
-	static var CODEC:Codec = Codec.bicast([
-		Codec.STRING_NAME, Codec.field(&"id", Codec.FieldType.Field, "dialog_id"),
-		Codec.STRING, Codec.field(&"title", Codec.FieldType.Field, "dialog_title"),
-		Codec.STRING, Codec.field(&"body", Codec.FieldType.Field, "dialog_body"),
-		Codec.nullable(Codec.lazy(func() -> Codec: return CODEC)), Codec.field(&"next", Codec.FieldType.Field, "next_dialog")
-	], DialogRef, DialogRef._bicast_import)
 
 	var id:StringName
 	var title:String
