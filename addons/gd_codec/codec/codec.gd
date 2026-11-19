@@ -760,6 +760,31 @@ static func bicast(format : Variant, c_type:Variant, c_ctor : Callable = Callabl
 	return c._bicast_map(format, c_type, c_ctor)
 
 
+## Creates a codec that resolves [param initializer] only when an operation needs it.
+static func lazy(initializer:Callable) -> Codec:
+	assert(not initializer.is_null(), "A lazy codec initializer must be provided.")
+	var lazy_codec:Codec = Codec.new()
+	lazy_codec._set_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		var codec:Codec = initializer.call()
+		codec.encode(v, buf)
+	))
+	lazy_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
+		var codec:Codec = initializer.call()
+		return codec.decode(buf)
+	))
+	lazy_codec._set_wire_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		var codec:Codec = initializer.call()
+		codec._encode_wire(v, buf)
+	))
+	lazy_codec._json_smap_f = func(v:Variant) -> Variant:
+		var codec:Codec = initializer.call()
+		if not codec._json_smap_f.is_null():
+			return codec._json_smap_f.call(v)
+		var smap:Callable = codec.get_smap()
+		return smap.call(v) if not smap.is_null() else v
+	return lazy_codec
+
+
 func _bicast_map(format : Variant, c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
 	assert(format is Array[Variant] or format is BicastMapping, "The format used in bicast must either be an array of elements or a result from Codec.bicast_inheritable!")
 	#region bicast array format
@@ -819,7 +844,15 @@ func _bicast_map(format : Variant, c_type:Variant, c_ctor : Callable = Callable(
 		var values:Array[Variant] = self._smap_f.call(v)
 		var json_fields:Dictionary = {}
 		for i in range(json_names.size()):
-			json_fields[String(json_names[i])] = values[i]
+			var field_value:Variant = values[i]
+			var field_codec:Codec = field_codecs[i]
+			if not field_codec._json_smap_f.is_null():
+				field_value = field_codec._json_smap_f.call(field_value)
+			else:
+				var smap:Callable = field_codec.get_smap()
+				if not smap.is_null():
+					field_value = smap.call(field_value)
+			json_fields[String(json_names[i])] = field_value
 		return json_fields
 
 	self._rmap_f = func(values:Array[Variant]) -> Variant:

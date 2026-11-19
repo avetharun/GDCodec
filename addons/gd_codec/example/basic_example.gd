@@ -1,4 +1,14 @@
+## The purpose of this file is two things:
+## First, it allows a demonstration of what the GDCodec library can be used for
+## Second, it functions as a testing environment for various features of the library
+## specifically, codec recursion, record tests, xmaps, bicasts, etc.
+##
+## If you are looking for networking examples, check the networking_example scene!
+
 extends Node
+
+
+
 
 ## Records are a codec type that can be stored as a dictionary.
 ## However, Codec.mapof(k_codec, v_codec) will create an unformatted
@@ -132,7 +142,17 @@ func _init() -> void:
 	assert(i3_bicast_item.slot == item3.slot, "Item bicast roundtrip changed slot.")
 	assert(i3_bicast_item.data == item3.data, "Item bicast roundtrip changed data.")
 	print("Item (bicast roundtrip 3): " + str(i3_bicast_item))
-	
+
+	var dialog_leaf := DialogRef.new(&"leaf", "Leaf", "End of dialog")
+	var dialog_root := DialogRef.new(&"root", "Root", "Start of dialog", dialog_leaf)
+	var dialog_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	DialogRef.CODEC.encode(dialog_root, dialog_buffer)
+	dialog_buffer.seek(0)
+	var decoded_dialog:DialogRef = DialogRef.CODEC.decode(dialog_buffer)
+	assert(decoded_dialog.id == dialog_root.id, "Recursive bicast roundtrip changed the root id.")
+	assert(decoded_dialog.next.id == dialog_leaf.id, "Recursive bicast roundtrip changed the next dialog id.")
+	assert(decoded_dialog.next.next == null, "Recursive bicast roundtrip changed the terminal dialog.")
+	print("Dialog (bicast roundtrip) "+decoded_dialog._to_string())
 	var i2_bicast_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
 	item_bicast_codec.encode(item2, i2_bicast_buffer)
 	i2_bicast_buffer.seek(0)
@@ -245,6 +265,34 @@ class Inventory extends RefCounted:
 	func _to_string() -> String:
 		return "Inventory with items: " + str(items)
 
+class DialogRef extends RefCounted:
+	static var CODEC:Codec = Codec.bicast([
+		Codec.STRING_NAME, Codec.field(&"id", Codec.FieldType.Field, "dialog_id"),
+		Codec.STRING, Codec.field(&"title", Codec.FieldType.Field, "dialog_title"),
+		Codec.STRING, Codec.field(&"body", Codec.FieldType.Field, "dialog_body"),
+		Codec.nullable(Codec.lazy(func() -> Codec: return CODEC)), Codec.field(&"next", Codec.FieldType.Field, "next_dialog")
+	], DialogRef, DialogRef._bicast_import)
+
+	var id:StringName
+	var title:String
+	var body:String
+	var next:DialogRef
+
+	static func _bicast_import(p_id:StringName, p_title:String, p_body:String, p_next:DialogRef) -> DialogRef:
+		return DialogRef.new(p_id, p_title, p_body, p_next)
+
+	func _init(p_id:StringName, p_title:String, p_body:String, p_next:DialogRef = null) -> void:
+		id = p_id
+		title = p_title
+		body = p_body
+		next = p_next
+	func _to_string() -> String:
+		var base : String = "$%s | \"%s\" : \"%s\"" %[id, title, body]
+		var _current : DialogRef = next
+		while _current != null:
+			base += " -> "+ _current._to_string()
+			_current = _current.next
+		return base
 class BmpHeader extends RefCounted:
 	var width:int
 	var height:int
