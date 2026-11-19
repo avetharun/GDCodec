@@ -108,6 +108,13 @@ static var item_record_codec : Codec = Codec.record({
 		"data": Codec.optional(Codec.VARIANT, {})
 		})
 
+## A tagged choice whose payload codec is selected by its StringName identifier.
+static var pick_codec:Codec = Codec.pick({
+	&"pick_a": Codec.bicast([Codec.INT, &"var_a"], PickA),
+	&"pick_b": Codec.bicast([Codec.STRING, &"var_b"], PickB),
+	&"pick_c": Codec.bicast([Codec.BOOL, &"var_c"], PickC)
+})
+
 static var inventory_codec : Codec = Codec.record({
 		"items": Codec.arrayof(item_codec),
 		}).xmap(
@@ -194,6 +201,28 @@ func _init() -> void:
 	assert(keyed_record_codec.decode(keyed_binary) == keyed_value, "Keyed binary record roundtrip failed.")
 	var keyed_json:StreamPeerBuffer = CodecOps.JSON_OPS.encode(keyed_record_codec, keyed_value)
 	assert(CodecOps.JSON_OPS.decode_buffer(keyed_record_codec, keyed_json) == keyed_value, "Keyed JSON record roundtrip failed.")
+	var pick_a_value:PickA = PickA.new(0xdb7991)
+	var pick_a_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	pick_codec.encode([&"pick_a", pick_a_value], pick_a_buffer)
+	pick_a_buffer.seek(0)
+	var decoded_pick_a:Array = pick_codec.decode(pick_a_buffer)
+	assert(decoded_pick_a[0] == &"pick_a" and decoded_pick_a[1] is PickA and decoded_pick_a[1].var_a == pick_a_value.var_a, "PickA roundtrip failed.")
+	print("Pick (pick_a roundtrip): " + str(decoded_pick_a[1].var_a) + " == " + str(0xdb7991))
+	var pick_b_value:PickB = PickB.new("Some String")
+	var pick_b_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	pick_codec.encode([&"pick_b", pick_b_value], pick_b_buffer)
+	pick_b_buffer.seek(0)
+	var decoded_pick_b:Array = pick_codec.decode(pick_b_buffer)
+	assert(decoded_pick_b[0] == &"pick_b" and decoded_pick_b[1] is PickB and decoded_pick_b[1].var_b == pick_b_value.var_b, "PickB roundtrip failed.")
+	print("Pick (pick_b roundtrip): \"" + str(decoded_pick_b[1].var_b) + "\" == \"Some String\"")
+	var pick_c_value:PickC = PickC.new(true)
+	var pick_c_buffer:StreamPeerBuffer = StreamPeerBuffer.new()
+	pick_codec.encode([&"pick_c", pick_c_value], pick_c_buffer)
+	pick_c_buffer.seek(0)
+	var decoded_pick_c:Array = pick_codec.decode(pick_c_buffer)
+	assert(decoded_pick_c[0] == &"pick_c" and decoded_pick_c[1] is PickC and decoded_pick_c[1].var_c == pick_c_value.var_c, "PickC roundtrip failed.")
+	print("Pick (pick_c roundtrip): " + str(decoded_pick_c[1].var_c) + " == true")
+
 	var inventory : Inventory = Inventory.new([item1, item2])
 	## These will encode the item and inventory into a JSON object, based on
 	## their codec.
@@ -295,6 +324,22 @@ class DialogRef extends RefCounted:
 			base += " -> "+ _current._to_string()
 			_current = _current.next
 		return base
+
+class PickA extends RefCounted:
+	var var_a:int
+	func _init(p_var_a:int) -> void:
+		var_a = p_var_a
+
+class PickB extends RefCounted:
+	var var_b:String
+	func _init(p_var_b:String) -> void:
+		var_b = p_var_b
+
+class PickC extends RefCounted:
+	var var_c:bool
+	func _init(p_var_c:bool) -> void:
+		var_c = p_var_c
+
 class BmpHeader extends RefCounted:
 	var width:int
 	var height:int

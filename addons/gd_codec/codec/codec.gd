@@ -703,6 +703,111 @@ static func get_enum_string_value(p_enum_type:Variant, e_key:String, default:int
 	return default
 
 
+## Creates a codec that maps field codecs to and from instances of [param c_type].[br]
+## Params require pairs of Codec and a raw [StringName] or [CodecBiRef] in the following format:[br]
+## [code][CODEC_TYPE, &"field_name", ...][/code][br]
+## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.[br]
+## Native classes require an explicit constructor callable in [param c_ctor].[br]
+## JSON serialization uses field names from [CodecBiRef.json_name].
+static func bicast(format : Variant, c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
+	var c : Codec = Codec.new()
+	assert(format is Array[Variant] or format is BicastMapping, "The format used in bicast must either be an array of elements or a result from Codec.bicast_inheritable!")
+	return c._bicast_map(format, c_type, c_ctor)
+
+
+## Picks a codec based on the name/id supplied. If no codec is valid, the encode will fail and the default value will be returned when decoding.
+static func pick(choices:Dictionary[StringName, Codec], default:Variant = null) -> Codec:
+	var c : Codec = Codec.new()
+	c._set_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		if v == null or v == default:
+			buf.put_u8(0)
+			return
+		assert(v is Array, "Picked values must use the form [StringName, value].")
+		assert(v.size() == 2, "Picked values must use the form [StringName, value].")
+		var name:StringName = StringName(v[0])
+		assert(choices.has(name), "No codec is registered for picked name '%s'." % name)
+		buf.put_u8(1)
+		STRING_NAME.encode(name, buf)
+		(choices[name] as Codec).encode(v[1], buf)
+	))
+	c._set_wire_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		if v == null or v == default:
+			buf.put_u8(0)
+			return
+		assert(v is Array, "Picked values must use the form [StringName, value].")
+		assert(v.size() == 2, "Picked values must use the form [StringName, value].")
+		var name:StringName = StringName(v[0])
+		assert(choices.has(name), "No codec is registered for picked name '%s'." % name)
+		buf.put_u8(1)
+		STRING_NAME._encode_wire(name, buf)
+		(choices[name] as Codec)._encode_wire(v[1], buf)
+	))
+	c._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
+		var marker:int = buf.get_u8()
+		assert(marker == 0 or marker == 1)
+		if marker == 0:
+			return default
+		var name:StringName = STRING_NAME.decode(buf)
+		if not choices.has(name):
+			return default
+		return [name, (choices[name] as Codec).decode(buf)]
+	))
+	c._json_smap_f = func(v:Variant) -> Variant:
+		if v == null or v == default:
+			return v
+		assert(v is Array and v.size() == 2)
+		var name:StringName = StringName(v[0])
+		if not choices.has(name):
+			return default
+		var payload:Variant = v[1]
+		var payload_codec:Codec = choices[name]
+		if not payload_codec._json_smap_f.is_null():
+			payload = payload_codec._json_smap_f.call(payload)
+		else:
+			var smap:Callable = payload_codec.get_smap()
+			if not smap.is_null():
+				payload = smap.call(payload)
+		return [name, payload]
+	c._json_wire_encoder = Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		if v == null or v == default:
+			buf.put_u8(0)
+			return
+		assert(v is Array and v.size() == 2)
+		var name:StringName = StringName(v[0])
+		assert(choices.has(name), "No codec is registered for picked name '%s'." % name)
+		buf.put_u8(1)
+		STRING_NAME._encode_wire(name, buf)
+		(choices[name] as Codec)._encode_wire(v[1], buf)
+	)
+	c.set_name("Pick")
+	return c
+
+
+## Creates a codec that resolves [param initializer] only when an operation needs it.
+static func lazy(initializer:Callable) -> Codec:
+	assert(not initializer.is_null(), "A lazy codec initializer must be provided.")
+	var lazy_codec:Codec = Codec.new()
+	lazy_codec._set_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		var codec:Codec = initializer.call()
+		codec.encode(v, buf)
+	))
+	lazy_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
+		var codec:Codec = initializer.call()
+		return codec.decode(buf)
+	))
+	lazy_codec._set_wire_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
+		var codec:Codec = initializer.call()
+		codec._encode_wire(v, buf)
+	))
+	lazy_codec._json_smap_f = func(v:Variant) -> Variant:
+		var codec:Codec = initializer.call()
+		if not codec._json_smap_f.is_null():
+			return codec._json_smap_f.call(v)
+		var smap:Callable = codec.get_smap()
+		return smap.call(v) if not smap.is_null() else v
+	return lazy_codec
+
+
 ## Encodes into the supplied buffer
 func encode(v:Variant, buf:StreamPeerBuffer) -> StreamPeerBuffer:
 	_encoder.encode(v, buf)
@@ -746,43 +851,6 @@ func get_rmap() -> Callable:
 ## function, or the mapper in [code]smap[/code]
 func get_smap() -> Callable:
 	return _smap_f
-
-
-## Creates a codec that maps field codecs to and from instances of [param c_type].[br]
-## Params require pairs of Codec and a raw [StringName] or [CodecBiRef] in the following format:[br]
-## [code][CODEC_TYPE, &"field_name", ...][/code][br]
-## Raw names are read with [method Object.get]. Use [method Codec.field] to select a different access method.[br]
-## Native classes require an explicit constructor callable in [param c_ctor].[br]
-## JSON serialization uses field names from [CodecBiRef.json_name].
-static func bicast(format : Variant, c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
-	var c : Codec = Codec.new()
-	assert(format is Array[Variant] or format is BicastMapping, "The format used in bicast must either be an array of elements or a result from Codec.bicast_inheritable!")
-	return c._bicast_map(format, c_type, c_ctor)
-
-
-## Creates a codec that resolves [param initializer] only when an operation needs it.
-static func lazy(initializer:Callable) -> Codec:
-	assert(not initializer.is_null(), "A lazy codec initializer must be provided.")
-	var lazy_codec:Codec = Codec.new()
-	lazy_codec._set_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
-		var codec:Codec = initializer.call()
-		codec.encode(v, buf)
-	))
-	lazy_codec._set_decoder(Decoder.new(func(buf:StreamPeerBuffer):
-		var codec:Codec = initializer.call()
-		return codec.decode(buf)
-	))
-	lazy_codec._set_wire_encoder(Encoder.new(func(v:Variant, buf:StreamPeerBuffer):
-		var codec:Codec = initializer.call()
-		codec._encode_wire(v, buf)
-	))
-	lazy_codec._json_smap_f = func(v:Variant) -> Variant:
-		var codec:Codec = initializer.call()
-		if not codec._json_smap_f.is_null():
-			return codec._json_smap_f.call(v)
-		var smap:Callable = codec.get_smap()
-		return smap.call(v) if not smap.is_null() else v
-	return lazy_codec
 
 
 func _bicast_map(format : Variant, c_type:Variant, c_ctor : Callable = Callable()) -> Codec:
